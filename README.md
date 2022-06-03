@@ -35,6 +35,14 @@ Rust installed.
 
 ## 🔬 Usage
 
+### Configuration
+
+- `GITHUB_APP_ID`
+- `GITHUB_APP_SECRET`
+- `REGISTRY_ADMIN_ACCOUNT_PRIVATE_KEY`
+
+### Run
+
 ```bash
 cargo run
 ```
