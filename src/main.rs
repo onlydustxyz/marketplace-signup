@@ -24,7 +24,8 @@ struct GithubUserRegistrationRequest<'r> {
 
 #[post("/github", format = "json", data = "<registration>")]
 async fn register_github_user(registration: Json<GithubUserRegistrationRequest<'_>>) -> Status {
-    let github_client = github::GitHubClient::new();
+    let github_client =
+        github::GitHubClient::new("foo-github-id".into(), "foo-github-secret".into());
 
     // Call POST https://github.com/login/oauth/access_token with id+secret+authorization_code
     // to get an access_token (and BTW check that the authorization_code is valid).
