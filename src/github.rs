@@ -31,13 +31,13 @@ struct UserResponseBody {
 }
 
 impl GitHubClient {
-    pub fn new() -> GitHubClient {
+    pub fn new(github_id: String, github_secret: String) -> Self {
         GitHubClient {
             http_client: reqwest::Client::new(),
             access_token_url: "https://github.com/login/oauth/access_token".into(),
             user_url: "https://api.github.com/user".into(),
-            github_id: "github_id".into(),
-            github_secret: "github_secret".into(),
+            github_id,
+            github_secret,
         }
     }
 
@@ -54,8 +54,8 @@ impl GitHubClient {
         let response = self
             .http_client
             .post(&self.access_token_url)
-            .header(reqwest::header::ACCEPT, "application/json")
             .json(&request_body)
+            .header(reqwest::header::ACCEPT, "application/json")
             .send()
             .await?
             .error_for_status()?;
@@ -85,31 +85,39 @@ impl GitHubClient {
 #[cfg(test)]
 mod tests {
     use super::GitHubClient;
-    use claim::assert_ok_eq;
-    use httptest::{matchers::*, responders::*, Expectation, Server};
-    use rocket::tokio;
+    use claim::*;
+    use httpmock::prelude::*;
+    use rocket::{serde::json::serde_json, tokio};
+    use serde_json::json;
 
     #[tokio::test]
     async fn new_access_token() {
         // Start a server running on a local ephemeral port.
-        let server = Server::run();
+        let server = MockServer::start();
 
-        let mut github_client = GitHubClient::new();
+        let mut github_client =
+            GitHubClient::new("foo-github-id".into(), "foo-github-secret".into());
         github_client.access_token_url = server.url("/login/oauth/access_token").to_string();
 
-        server.expect(
-            Expectation::matching(request::method_path("POST", "/login/oauth/access_token"))
-                .respond_with(status_code(200).body(
-                    r#"{
-                        "access_token":"gho_16C7e42F292c6912E7710c838347Ae178B4a",
-                        "scope":"repo,gist",
-                        "token_type":"bearer"
-                  }"#,
-                )),
-        );
+        let github_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/login/oauth/access_token")
+                .header("Accept", "application/json")
+                .json_body(json!({
+                    "client_id": "foo-github-id",
+                    "client_secret": "foo-github-secret",
+                    "code": "foo-code",
+                }));
+            then.status(200).json_body(json!({
+                "access_token":"gho_16C7e42F292c6912E7710c838347Ae178B4a",
+                "scope":"repo,gist",
+                "token_type":"bearer",
+            }));
+        });
 
-        let authorization_code = "foo-authorization_code";
-        let result = github_client.new_access_token(authorization_code).await;
+        let result = github_client.new_access_token("foo-code").await;
+
+        github_mock.assert();
         assert!(result.is_ok());
         assert_eq!(
             "gho_16C7e42F292c6912E7710c838347Ae178B4a".to_string(),
@@ -120,25 +128,27 @@ mod tests {
     #[tokio::test]
     async fn get_user_id() {
         // Start a server running on a local ephemeral port.
-        let server = Server::run();
+        let server = MockServer::start();
 
-        let mut github_client = GitHubClient::new();
+        let mut github_client =
+            GitHubClient::new("foo-github-id".into(), "foo-github-secret".into());
         github_client.user_url = server.url("/user").to_string();
 
-        server.expect(
-            Expectation::matching(request::method_path("GET", "/user")).respond_with(
-                status_code(200).body(
-                    r#"{
-                        "login": "octocat",
-                        "id": 42,
-                        "node_id": "MDQ6VXNlcjE="
-                  }"#,
-                ),
-            ),
-        );
+        let github_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/user")
+                .header("Accept", "application/json")
+                .header("Authorization", "token foo-access-token");
+            then.status(200).json_body(json!({
+                "login": "octocat",
+                "id": 42,
+                "node_id": "MDQ6VXNlcjE=",
+            }));
+        });
 
-        let access_token = "foo-access_token";
-        let result = github_client.get_user_id(access_token).await;
+        let result = github_client.get_user_id("foo-access-token").await;
+
+        github_mock.assert();
         assert_ok_eq!(result, 42);
     }
 }
