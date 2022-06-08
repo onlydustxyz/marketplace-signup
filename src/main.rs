@@ -19,6 +19,12 @@ fn rocket() -> _ {
     let user_api_url = std::env::var("GITHUB_USER_API_URL")
         .unwrap_or_else(|_| "https://api.github.com/user".to_string());
 
+    let hex_account_address = std::env::var("STARKNET_ACCOUNT")
+        .expect("STARKNET_ACCOUNT environment variable must be set");
+    let hex_private_key = std::env::var("STARKNET_PRIVATE_KEY")
+        .expect("STARKNET_PRIVATE_KEY environment variable must be set");
+    let hex_badge_registry_address = std::env::var("STARKNET_BADGE_REGISTRY_ADDRESS")
+        .expect("STARKNET_BADGE_REGISTRY_ADDRESS environment variable must be set");
     let chain = std::env::var("STARKNET_CHAIN")
         .expect("STARKNET_CHAIN environment variable must be set to either 'MAINNET' or 'TESTNET'");
     let chain: StarkNetChain = chain
@@ -30,7 +36,12 @@ fn rocket() -> _ {
     let github_client =
         github::GitHubClient::new(github_id, github_secret, access_token_url, user_api_url);
 
-    let starknet_client = starknet_client::StarkNetClient::new(chain);
+    let starknet_client = starknet_client::StarkNetClient::new(
+        &hex_account_address,
+        &hex_private_key,
+        &hex_badge_registry_address,
+        chain,
+    );
 
     rocket::build()
         .manage(github_client)
