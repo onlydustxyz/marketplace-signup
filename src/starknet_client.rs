@@ -4,17 +4,20 @@ use std::{
 };
 
 use starknet::{
-    accounts::single_owner::TransactionError,
+    accounts::{single_owner::TransactionError, Account, Call, SingleOwnerAccount},
     core::{
+        chain_id::{MAINNET, TESTNET},
         types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
         utils::get_selector_from_name,
     },
     providers::{Provider, SequencerGatewayProvider},
-    signers::{LocalWallet, Signer},
+    signers::{LocalWallet, Signer, SigningKey},
 };
 
 pub struct StarkNetClient {
     provider: SequencerGatewayProvider,
+    account: SingleOwnerAccount<SequencerGatewayProvider, LocalWallet>,
+    badge_registry_address: FieldElement,
 }
 
 /// Stark ECDSA signature
@@ -68,13 +71,37 @@ impl FromStr for StarkNetChain {
 }
 
 impl StarkNetClient {
-    pub fn new(chain: StarkNetChain) -> Self {
+    pub fn new(
+        hex_account_address: &str,
+        hex_private_key: &str,
+        hex_badge_registry_address: &str,
+        chain: StarkNetChain,
+    ) -> Self {
         let provider = match chain {
             StarkNetChain::Testnet => SequencerGatewayProvider::starknet_alpha_goerli(),
             StarkNetChain::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
         };
+        let account_provider = match chain {
+            StarkNetChain::Testnet => SequencerGatewayProvider::starknet_alpha_goerli(),
+            StarkNetChain::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
+        };
+        let chain_id = match chain {
+            StarkNetChain::Testnet => TESTNET,
+            StarkNetChain::Mainnet => MAINNET,
+        };
+        let signer = LocalWallet::from(SigningKey::from_secret_scalar(
+            FieldElement::from_hex_be(hex_private_key).expect("Invalid private key"),
+        ));
+        let account_address =
+            FieldElement::from_hex_be(hex_account_address).expect("Invalid account address");
+        let badge_registry_address = FieldElement::from_hex_be(hex_badge_registry_address)
+            .expect("Invalid address for badge_registry");
 
-        StarkNetClient { provider }
+        StarkNetClient {
+            provider,
+            account: SingleOwnerAccount::new(account_provider, signer, account_address, chain_id),
+            badge_registry_address,
+        }
     }
 
     pub async fn check_signature(
@@ -104,6 +131,24 @@ impl StarkNetClient {
 
         Ok(())
     }
+
+    pub async fn register_user(
+        &self,
+        user_account_address: FieldElement,
+        github_user_id: u64,
+    ) -> Result<(), StarknetError> {
+        self.account
+            .execute(&[Call {
+                to: self.badge_registry_address,
+                selector: get_selector_from_name("register_github_handle").unwrap(),
+                calldata: vec![user_account_address, FieldElement::from(github_user_id)],
+            }])
+            .send()
+            .await
+            .map_err(StarknetError::TransactionError)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -114,7 +159,15 @@ mod tests {
     use rocket::tokio;
     use starknet::core::types::FieldElement;
 
+    const ADMIN_TEST_ACCOUNT: &str =
+        "0x7343772b33dd34cbb1e23b9abefdde5b7addccb3e3c66943b78e5e52d416c29";
+    const ADMIN_TEST_PRIVATE_KEY: &str =
+        "0x55cb05e5333e59e535c81183d5a4f7f8b2add5679996c5d426b0bbb6665b564";
+
     const ANYONE_TEST_ACCOUNT: &str =
+        "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
+
+    const BADGE_REGISTRY_ADDRESS: &str =
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
     const HASH: &str = "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074";
@@ -125,7 +178,12 @@ mod tests {
 
     #[tokio::test]
     async fn check_signature_is_valid() {
-        let client = StarkNetClient::new(StarkNetChain::Testnet);
+        let client = StarkNetClient::new(
+            ADMIN_TEST_ACCOUNT,
+            ADMIN_TEST_PRIVATE_KEY,
+            BADGE_REGISTRY_ADDRESS,
+            StarkNetChain::Testnet,
+        );
 
         let address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
         let hash = FieldElement::from_hex_be(HASH).unwrap();
@@ -150,7 +208,12 @@ mod tests {
 
     #[tokio::test]
     async fn check_signature_is_not_valid() {
-        let client = StarkNetClient::new(StarkNetChain::Testnet);
+        let client = StarkNetClient::new(
+            ADMIN_TEST_ACCOUNT,
+            ADMIN_TEST_PRIVATE_KEY,
+            BADGE_REGISTRY_ADDRESS,
+            StarkNetChain::Testnet,
+        );
 
         let address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
         let hash = FieldElement::from_hex_be(HASH).unwrap();

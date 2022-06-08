@@ -75,7 +75,7 @@ pub async fn register_github_user(
 
     let user_id = github_client.get_user_id(&access_token).await;
 
-    match user_id {
+    let user_id = match user_id {
         Ok(user_id) => user_id,
         Err(e) => {
             error!(
@@ -86,8 +86,6 @@ pub async fn register_github_user(
         }
     };
 
-    // TODO: call `is_valid_signature` @view function on the Account smart contract (at account_address) to check that
-    // the signed_authorization_code is valid and belongs to the given account.
     let result = starknet_client
         .check_signature(
             starknet_client::SignedData::from(registration.signed_data),
@@ -106,9 +104,20 @@ pub async fn register_github_user(
         }
     }
 
-    // TODO: call `register` @external function of the Registry smart contract, passing the github user ID and the account_address
-    // as arguments.
-    // This call must be done from our own account which has the right to call the `register` function of Registry smart contract.
+    let result = starknet_client
+        .register_user(registration.account_address, user_id)
+        .await;
+
+    match result {
+        Ok(_) => (),
+        Err(e) => {
+            error!(
+                "failed to register account {} in badge registry. Error: {}",
+                registration.account_address, e
+            );
+            return Status::InternalServerError;
+        }
+    }
 
     Status::NoContent
 }
