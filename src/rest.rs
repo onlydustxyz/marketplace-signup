@@ -4,14 +4,13 @@ use rocket::{
     serde::{json::Json, Deserialize},
     State,
 };
-use starknet::core::types::FieldElement;
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct GithubUserRegistrationRequest<'r> {
     authorization_code: &'r str,
-    signed_authorization_code: &'r str,
-    account_address: FieldElement,
+    // TODO: signed_authorization_code: &'r str,
+    // TODO: account_address: FieldElement,
 }
 
 #[post("/github", format = "json", data = "<registration>")]
@@ -36,7 +35,7 @@ pub async fn register_github_user(
 
     let user_id = github_client.get_user_id(&access_token).await;
 
-    let user_id = match user_id {
+    match user_id {
         Ok(user_id) => user_id,
         Err(e) => {
             error!(

@@ -103,7 +103,7 @@ mod tests {
         let github_client = GitHubClient::new(
             "foo-github-id".into(),
             "foo-github-secret".into(),
-            server.url("/login/oauth/access_token").to_string(),
+            server.url("/login/oauth/access_token"),
             "".into(),
         );
 
@@ -142,7 +142,7 @@ mod tests {
             "foo-github-id".into(),
             "foo-github-secret".into(),
             "".into(),
-            server.url("/user").to_string(),
+            server.url("/user"),
         );
 
         let github_mock = server.mock(|when, then| {

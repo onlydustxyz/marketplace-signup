@@ -11,9 +11,9 @@ fn rocket() -> _ {
     let github_id = std::env::var("GITHUB_ID").unwrap();
     let github_secret = std::env::var("GITHUB_SECRET").unwrap();
     let access_token_url = std::env::var("GITHUB_ACCESS_TOKEN_URL")
-        .unwrap_or("https://github.com/login/oauth/access_token".to_string());
-    let user_api_url =
-        std::env::var("GITHUB_USER_API_URL").unwrap_or("https://api.github.com/user".to_string());
+        .unwrap_or_else(|_| "https://github.com/login/oauth/access_token".to_string());
+    let user_api_url = std::env::var("GITHUB_USER_API_URL")
+        .unwrap_or_else(|_| "https://api.github.com/user".to_string());
 
     info!("configuration loaded");
 
