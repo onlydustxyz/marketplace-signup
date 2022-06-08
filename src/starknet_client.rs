@@ -4,19 +4,17 @@ use std::{
 };
 
 use starknet::{
-    accounts::{single_owner::TransactionError, SingleOwnerAccount},
+    accounts::single_owner::TransactionError,
     core::{
-        chain_id::{MAINNET, TESTNET},
         types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
         utils::get_selector_from_name,
     },
     providers::{Provider, SequencerGatewayProvider},
-    signers::{LocalWallet, Signer, SigningKey},
+    signers::{LocalWallet, Signer},
 };
 
 pub struct StarkNetClient {
     provider: SequencerGatewayProvider,
-    account: SingleOwnerAccount<SequencerGatewayProvider, LocalWallet>,
 }
 
 /// Stark ECDSA signature
@@ -53,8 +51,8 @@ impl fmt::Display for StarknetError {
 }
 
 pub enum StarkNetChain {
-    TESTNET,
-    MAINNET,
+    Testnet,
+    Mainnet,
 }
 
 impl FromStr for StarkNetChain {
@@ -62,37 +60,21 @@ impl FromStr for StarkNetChain {
 
     fn from_str(input: &str) -> Result<StarkNetChain, Self::Err> {
         match input {
-            "TESTNET" => Ok(StarkNetChain::TESTNET),
-            "MAINNET" => Ok(StarkNetChain::MAINNET),
+            "TESTNET" => Ok(StarkNetChain::Testnet),
+            "MAINNET" => Ok(StarkNetChain::Mainnet),
             _ => Err(()),
         }
     }
 }
 
 impl StarkNetClient {
-    pub fn new(hex_account_address: &str, hex_private_key: &str, chain: StarkNetChain) -> Self {
+    pub fn new(chain: StarkNetChain) -> Self {
         let provider = match chain {
-            StarkNetChain::TESTNET => SequencerGatewayProvider::starknet_alpha_goerli(),
-            StarkNetChain::MAINNET => SequencerGatewayProvider::starknet_alpha_mainnet(),
+            StarkNetChain::Testnet => SequencerGatewayProvider::starknet_alpha_goerli(),
+            StarkNetChain::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
         };
-        let account_provider = match chain {
-            StarkNetChain::TESTNET => SequencerGatewayProvider::starknet_alpha_goerli(),
-            StarkNetChain::MAINNET => SequencerGatewayProvider::starknet_alpha_mainnet(),
-        };
-        let chain_id = match chain {
-            StarkNetChain::TESTNET => TESTNET,
-            StarkNetChain::MAINNET => MAINNET,
-        };
-        let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-            FieldElement::from_hex_be(hex_private_key).expect("Invalid private key"),
-        ));
-        let address =
-            FieldElement::from_hex_be(hex_account_address).expect("Invalid account address");
 
-        StarkNetClient {
-            provider,
-            account: SingleOwnerAccount::new(account_provider, signer, address, chain_id),
-        }
+        StarkNetClient { provider }
     }
 
     pub async fn check_signature(
@@ -132,11 +114,6 @@ mod tests {
     use rocket::tokio;
     use starknet::core::types::FieldElement;
 
-    const ADMIN_TEST_ACCOUNT: &str =
-        "0x7343772b33dd34cbb1e23b9abefdde5b7addccb3e3c66943b78e5e52d416c29";
-    const ADMIN_TEST_PRIVATE_KEY: &str =
-        "0x55cb05e5333e59e535c81183d5a4f7f8b2add5679996c5d426b0bbb6665b564";
-
     const ANYONE_TEST_ACCOUNT: &str =
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
@@ -148,11 +125,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_signature_is_valid() {
-        let client = StarkNetClient::new(
-            ADMIN_TEST_ACCOUNT,
-            ADMIN_TEST_PRIVATE_KEY,
-            StarkNetChain::TESTNET,
-        );
+        let client = StarkNetClient::new(StarkNetChain::Testnet);
 
         let address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
         let hash = FieldElement::from_hex_be(HASH).unwrap();
@@ -177,11 +150,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_signature_is_not_valid() {
-        let client = StarkNetClient::new(
-            ADMIN_TEST_ACCOUNT,
-            ADMIN_TEST_PRIVATE_KEY,
-            StarkNetChain::TESTNET,
-        );
+        let client = StarkNetClient::new(StarkNetChain::Testnet);
 
         let address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
         let hash = FieldElement::from_hex_be(HASH).unwrap();
