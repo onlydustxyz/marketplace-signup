@@ -4,7 +4,7 @@ pub struct GitHubClient {
     http_client: reqwest::Client,
 
     access_token_url: String,
-    user_url: String,
+    user_api_url: String,
 
     github_id: String,
     github_secret: String,
@@ -31,11 +31,16 @@ struct UserResponseBody {
 }
 
 impl GitHubClient {
-    pub fn new(github_id: String, github_secret: String) -> Self {
+    pub fn new(
+        github_id: String,
+        github_secret: String,
+        access_token_url: String,
+        user_api_url: String,
+    ) -> Self {
         GitHubClient {
             http_client: reqwest::Client::new(),
-            access_token_url: "https://github.com/login/oauth/access_token".into(),
-            user_url: "https://api.github.com/user".into(),
+            access_token_url,
+            user_api_url,
             github_id,
             github_secret,
         }
@@ -67,7 +72,7 @@ impl GitHubClient {
     pub async fn get_user_id(&self, access_token: &str) -> Result<u64, reqwest::Error> {
         let response = self
             .http_client
-            .get(&self.user_url)
+            .get(&self.user_api_url)
             .header(reqwest::header::ACCEPT, "application/json")
             .header(
                 reqwest::header::AUTHORIZATION,
@@ -95,9 +100,12 @@ mod tests {
         // Start a server running on a local ephemeral port.
         let server = MockServer::start();
 
-        let mut github_client =
-            GitHubClient::new("foo-github-id".into(), "foo-github-secret".into());
-        github_client.access_token_url = server.url("/login/oauth/access_token").to_string();
+        let github_client = GitHubClient::new(
+            "foo-github-id".into(),
+            "foo-github-secret".into(),
+            server.url("/login/oauth/access_token").to_string(),
+            "".into(),
+        );
 
         let github_mock = server.mock(|when, then| {
             when.method(POST)
@@ -130,9 +138,12 @@ mod tests {
         // Start a server running on a local ephemeral port.
         let server = MockServer::start();
 
-        let mut github_client =
-            GitHubClient::new("foo-github-id".into(), "foo-github-secret".into());
-        github_client.user_url = server.url("/user").to_string();
+        let github_client = GitHubClient::new(
+            "foo-github-id".into(),
+            "foo-github-secret".into(),
+            "".into(),
+            server.url("/user").to_string(),
+        );
 
         let github_mock = server.mock(|when, then| {
             when.method(GET)

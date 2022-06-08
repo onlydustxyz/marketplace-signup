@@ -2,61 +2,25 @@
 extern crate rocket;
 
 mod github;
-
-use rocket::{
-    http::Status,
-    serde::{json::Json, Deserialize},
-};
-use starknet::core::types::FieldElement;
+mod rest;
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().mount("/registrations", routes![register_github_user])
-}
+    info!("loading configuration...");
 
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct GithubUserRegistrationRequest<'r> {
-    authorization_code: &'r str,
-    signed_authorization_code: &'r str,
-    account_address: FieldElement,
-}
+    let github_id = std::env::var("GITHUB_ID").unwrap();
+    let github_secret = std::env::var("GITHUB_SECRET").unwrap();
+    let access_token_url = std::env::var("GITHUB_ACCESS_TOKEN_URL")
+        .unwrap_or("https://github.com/login/oauth/access_token".to_string());
+    let user_api_url =
+        std::env::var("GITHUB_USER_API_URL").unwrap_or("https://api.github.com/user".to_string());
 
-#[post("/github", format = "json", data = "<registration>")]
-async fn register_github_user(registration: Json<GithubUserRegistrationRequest<'_>>) -> Status {
+    info!("configuration loaded");
+
     let github_client =
-        github::GitHubClient::new("foo-github-id".into(), "foo-github-secret".into());
+        github::GitHubClient::new(github_id, github_secret, access_token_url, user_api_url);
 
-    // Call POST https://github.com/login/oauth/access_token with id+secret+authorization_code
-    // to get an access_token (and BTW check that the authorization_code is valid).
-    let access_token = github_client
-        .new_access_token(registration.authorization_code)
-        .await;
-    let access_token = match access_token {
-        Ok(access_token) => access_token,
-        Err(e) => {
-            //TODO: log
-            return Status::Unauthorized;
-        }
-    };
-
-    // Call GET https://api.github.com/user with the access_token in the Authorization header to
-    // get information about the logged user, in particular, its ID.
-    let user_id = github_client.get_user_id(&access_token).await;
-    let user_id = match user_id {
-        Ok(user_id) => user_id,
-        Err(e) => {
-            //TODO: log
-            return Status::InternalServerError;
-        }
-    };
-
-    // TODO: call `is_valid_signature` @view function on the Account smart contract (at account_address) to check that
-    // the signed_authorization_code is valid and belongs to the given account.
-
-    // TODO: call `register` @external function of the Registry smart contract, passing the github user ID and the account_address
-    // as arguments.
-    // This call must be done from our own account which has the right to call the `register` function of Registry smart contract.
-
-    Status::NoContent
+    rocket::build()
+        .manage(github_client)
+        .mount("/registrations", routes![rest::register_github_user])
 }
