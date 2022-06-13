@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{github, starknet_client};
+use crate::{github, hash_check, starknet_client};
 use rocket::{
     http::Status,
     serde::{json::Json, Deserialize},

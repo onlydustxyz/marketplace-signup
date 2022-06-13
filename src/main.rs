@@ -4,6 +4,7 @@ use crate::starknet_client::StarkNetChain;
 extern crate rocket;
 
 mod github;
+mod hash_check;
 mod rest;
 mod starknet_client;
 

@@ -1666,6 +1666,7 @@ dependencies = [
  "reqwest",
  "rocket",
  "starknet",
+ "thiserror",
 ]
 
 [[package]]
