@@ -46,10 +46,26 @@ All these environment variable must be set with appropriate values:
 - `STARKNET_BADGE_REGISTRY_ADDRESS` Badge-Registry contract address
 - `STARKNET_CHAIN` Either MAINNET or TESTNET
 
-### Run
+### Run locally (dev)
 
 ```bash
 cargo run
 ```
 
+### Build
+
+```bash
+cargo build --release
+```
+
+### Run executable
+
+```bash
+./target/release/od-badge-signup
+```
+
 ## 🌡️ Testing
+
+```bash
+cargo test
+```
