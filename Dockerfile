@@ -26,7 +26,11 @@ COPY --from=builder /etc/group /etc/group
 WORKDIR /app
 
 # Copy our build
+<<<<<<< HEAD
 COPY --from=builder /app/target/release/* /app/
+=======
+COPY --from=builder /app/target/release/od-badge-signup /app/od-badge-signup
+>>>>>>> 3e7976b (feat: add Dockerfile)
 
 # Use app user
 USER od-app-user:od-app-user
