@@ -37,9 +37,14 @@ Rust installed.
 
 ### Configuration
 
-- `GITHUB_APP_ID`
-- `GITHUB_APP_SECRET`
-- `REGISTRY_ADMIN_ACCOUNT_PRIVATE_KEY`
+All these environment variable must be set with appropriate values:
+
+- `GITHUB_ID` The GitHub OAuth App client ID
+- `GITHUB_SECRET` The GitHub OAuth App client secret
+- `STARKNET_ACCOUNT` Badge-Registry's owner account contract address
+- `STARKNET_PRIVATE_KEY` Badge-Registry's owner private key
+- `STARKNET_BADGE_REGISTRY_ADDRESS` Badge-Registry contract address
+- `STARKNET_CHAIN` Either MAINNET or TESTNET
 
 ### Run
 
