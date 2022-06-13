@@ -4,15 +4,11 @@ on:
   push:
     branches:
       - 'main'
-      - 'docker-github-action'
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - 'main'
 
 jobs:
-  deploy:
+  build:
     name: docker_build_and_push
     runs-on: ubuntu-latest
 
@@ -31,15 +27,24 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build, tag, and push the image to Amazon ECR
+    - name: Build the Docker image
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: od-badge-signup
         IMAGE_TAG: ${{ github.ref_name }}
       run: |
-        # Build a docker container and push it to ECR 
+        echo "Building docker image..."
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+    - name: Push the image to Amazon ECR
+      id: push-image
+      if: ${{ github.event_name == 'push' }}
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: od-badge-signup
+        IMAGE_TAG: ${{ github.ref_name }}
+      run: |
         echo "Pushing image to ECR..."
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        echo "Pushed image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG to ECR"
