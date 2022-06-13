@@ -158,6 +158,7 @@ mod tests {
     use super::StarkNetClient;
     use rocket::tokio;
     use starknet::core::types::FieldElement;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     const ADMIN_TEST_ACCOUNT: &str =
         "0x7343772b33dd34cbb1e23b9abefdde5b7addccb3e3c66943b78e5e52d416c29";
@@ -253,7 +254,9 @@ mod tests {
         );
 
         let user_address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
-        let user_id: u64 = 42;
+
+        let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let user_id: u64 = since_the_epoch.as_millis().try_into().unwrap();
 
         let result = client.register_user(user_address, user_id).await;
         assert!(result.is_ok(), "{}", result.err().unwrap());
