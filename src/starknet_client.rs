@@ -168,7 +168,7 @@ mod tests {
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
     const BADGE_REGISTRY_ADDRESS: &str =
-        "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
+        "0x0689c0f3483daffd4e79a61f22f5a093f8adee50926a96161c23b058de70200d";
 
     const HASH: &str = "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074";
     const SIGNATURE_R: &str = "0xde4d49b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117493bcd";
@@ -203,7 +203,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "{}", result.err().unwrap());
     }
 
     #[tokio::test]
@@ -241,5 +241,21 @@ mod tests {
                     .contains("is invalid, with respect to the public key"))
             }
         }
+    }
+
+    #[tokio::test]
+    async fn register_user() {
+        let client = StarkNetClient::new(
+            ADMIN_TEST_ACCOUNT,
+            ADMIN_TEST_PRIVATE_KEY,
+            BADGE_REGISTRY_ADDRESS,
+            StarkNetChain::Testnet,
+        );
+
+        let user_address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
+        let user_id: u64 = 42;
+
+        let result = client.register_user(user_address, user_id).await;
+        assert!(result.is_ok(), "{}", result.err().unwrap());
     }
 }
