@@ -46,6 +46,10 @@ All these environment variable must be set with appropriate values:
 - `STARKNET_BADGE_REGISTRY_ADDRESS` Badge-Registry contract address
 - `STARKNET_CHAIN` Either MAINNET or TESTNET
 
+Optional:
+
+- `ROCKET_LOG_LEVEL` Max level to log. (off/normal/debug/critical). Default for release: critical.
+
 ### Run locally (dev)
 
 ```bash
