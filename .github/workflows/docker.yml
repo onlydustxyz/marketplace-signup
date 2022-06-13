@@ -36,15 +36,13 @@ jobs:
       run: |
         echo "Building docker image..."
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
     - name: Push the image to Amazon ECR
       id: push-image
-      if: ${{ github.event_name == 'push' }}
       env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: od-badge-signup
-        IMAGE_TAG: ${{ github.ref_name }}
+        IMAGE: ${{ steps.build-image.outputs.image }}
       run: |
         echo "Pushing image to ECR..."
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "Pushed image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG to ECR"
+        docker push $IMAGE
+        echo "Pushed image $IMAGE to ECR"
