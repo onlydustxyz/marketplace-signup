@@ -20,7 +20,7 @@ trap 'exec 2>&4 1>&3' 0 1 2 3
 exec 1>$LOG_FILE 2>&1
 
 # Run the program
-docker run \
+docker run -d -p 80:8000 \
  --env GITHUB_ID="$GITHUB_ID" \
  --env GITHUB_SECRET="$GITHUB_SECRET" \
  --env STARKNET_ACCOUNT="$STARKNET_ACCOUNT" \
