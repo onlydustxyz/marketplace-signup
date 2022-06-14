@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'main'
+      - 'fix-docker-push'
     tags:
       - 'v*'
 
@@ -16,32 +17,28 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
 
-    - name: Login to Amazon ECR
-      id: login-ecr
+    - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
-        registry: public.ecr.aws
-        username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      env:
-        AWS_REGION: us-east-1
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build the Docker image
       id: build-image
       env:
-        ECR_REGISTRY: public.ecr.aws/a3g2g4b8
-        ECR_REPOSITORY: od-badge-signup
+        DOCKER_REPOSITORY: od-badge-signup
+        DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
         IMAGE_TAG: ${{ github.ref_name }}
       run: |
         echo "Building docker image..."
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        docker build -t $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG .
+        echo "::set-output name=image::$DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG"
 
-    - name: Push the image to Amazon ECR
+    - name: Push the image to Docker Hub
       id: push-image
       env:
         IMAGE: ${{ steps.build-image.outputs.image }}
       run: |
-        echo "Pushing image to ECR..."
+        echo "Pushing image to Docker Hub..."
         docker push $IMAGE
-        echo "Pushed image $IMAGE to ECR"
+        echo "Pushed image $IMAGE to Docker Hub"
