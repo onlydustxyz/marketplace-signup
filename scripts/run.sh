@@ -1,17 +1,19 @@
 #!/bin/bash
 
+IMAGE="docker.io/samuelker/od-badge-signup:fix-docker-push"
+
 # Get configuration
 aws s3 cp s3://mybucket-onlydust-devops/deathnote/od-badge-signup/conf.env /tmp/conf.env
+source /tmp/conf.env
 
 # Get secrets
-alias getawssecret="aws secretsmanager get-secret-value --region eu-west-3 --query SecretString --output text --secret-id"
-GITHUB_ID=$(getawssecret github-api-client-id)
-GITHUB_SECRET=$(getawssecret github-api-client-secret)
-STARKNET_ACCOUNT=$(getawssecret starknet-badge-registry-admin-account)
-STARKNET_PRIVATE_KEY=$(getawssecret starknet-badge-registry-admin-private-key)
+GITHUB_ID=$(aws secretsmanager get-secret-value --region eu-west-3 --query SecretString --output text --secret-id github-api-client-id)
+GITHUB_SECRET=$(aws secretsmanager get-secret-value --region eu-west-3 --query SecretString --output text --secret-id github-api-client-secret)
+STARKNET_ACCOUNT=$(aws secretsmanager get-secret-value --region eu-west-3 --query SecretString --output text --secret-id starknet-badge-registry-admin-account)
+STARKNET_PRIVATE_KEY=$(aws secretsmanager get-secret-value --region eu-west-3 --query SecretString --output text --secret-id starknet-badge-registry-admin-private-key)
 
 # Pull docker image
-docker pull public.ecr.aws/a3g2g4b8/od-badge-signup:main
+docker pull $IMAGE
 
 # Bind logs
 LOG_FILE=/var/log/docker-deathnote.txt
@@ -20,10 +22,12 @@ trap 'exec 2>&4 1>&3' 0 1 2 3
 exec 1>$LOG_FILE 2>&1
 
 # Run the program
-docker run -d -p 80:8000 \
+docker run -d -p 80:80 \
  --env GITHUB_ID="$GITHUB_ID" \
  --env GITHUB_SECRET="$GITHUB_SECRET" \
  --env STARKNET_ACCOUNT="$STARKNET_ACCOUNT" \
  --env STARKNET_PRIVATE_KEY="$STARKNET_PRIVATE_KEY" \
- --env-file /tmp/conf.env \
- od-badge-signup
+ --env STARKNET_BADGE_REGISTRY_ADDRESS="$STARKNET_BADGE_REGISTRY_ADDRESS" \
+ --env STARKNET_CHAIN="$STARKNET_CHAIN" \
+ --env ROCKET_LOG_LEVEL="$ROCKET_LOG_LEVEL" \
+ $IMAGE

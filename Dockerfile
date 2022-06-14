@@ -28,6 +28,11 @@ WORKDIR /app
 # Copy our build
 COPY --from=builder /app/target/release/* /app/
 
+# Expose port
+ENV ROCKET_ADDRESS=0.0.0.0
+ENV ROCKET_PORT=80
+EXPOSE 80
+
 # Use app user
 USER od-app-user:od-app-user
 
