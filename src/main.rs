@@ -46,5 +46,6 @@ fn rocket() -> _ {
     rocket::build()
         .manage(github_client)
         .manage(starknet_client)
+        .mount("/", routes![rest::health_check])
         .mount("/registrations", routes![rest::register_github_user])
 }
