@@ -1,6 +1,7 @@
 #!/bin/bash
 
-IMAGE="docker.io/samuelker/od-badge-signup:fix-docker-push"
+# Docker image to use. This can be overriden by adding `IMAGE=<whatever>` to the conf.env file that is stored in S3 (see lines below)
+IMAGE="docker.io/samuelker/od-badge-signup:main"
 
 # Get configuration
 aws s3 cp s3://mybucket-onlydust-devops/deathnote/od-badge-signup/conf.env /tmp/conf.env
