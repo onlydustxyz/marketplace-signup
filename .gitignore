@@ -7,3 +7,4 @@ artifacts
 env
 venv
 .idea
+.env
