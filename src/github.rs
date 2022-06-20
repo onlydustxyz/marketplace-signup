@@ -1,5 +1,7 @@
 use rocket::serde::{Deserialize, Serialize};
 
+const USER_AGENT: &str = "od-badge-signup";
+
 pub struct GitHubClient {
     http_client: reqwest::Client,
 
@@ -61,6 +63,7 @@ impl GitHubClient {
             .post(&self.access_token_url)
             .json(&request_body)
             .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
             .send()
             .await?
             .error_for_status()?;
@@ -74,6 +77,7 @@ impl GitHubClient {
             .http_client
             .get(&self.user_api_url)
             .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
             .header(
                 reqwest::header::AUTHORIZATION,
                 format!("token {}", access_token),

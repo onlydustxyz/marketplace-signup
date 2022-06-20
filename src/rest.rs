@@ -3,6 +3,7 @@ use std::fmt;
 use crate::{github, starknet_client};
 use rocket::{
     http::Status,
+    log::private::info,
     serde::{json::Json, Deserialize},
     State,
 };
@@ -119,6 +120,10 @@ pub async fn register_github_user(
         }
     }
 
+    info!(
+        "successfully registered user with GitHub ID {} and StarkNet account {}",
+        user_id, registration.account_address
+    );
     Status::NoContent
 }
 
