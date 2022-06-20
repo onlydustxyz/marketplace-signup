@@ -1,24 +1,13 @@
-use std::{
-    fmt::{self},
-    str::FromStr,
-};
-
 use starknet::{
-    accounts::{single_owner::TransactionError, Account, Call, SingleOwnerAccount},
+    accounts::{single_owner::TransactionError, Account, Call},
     core::{
-        chain_id::{MAINNET, TESTNET},
         types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
         utils::get_selector_from_name,
     },
-    providers::{Provider, SequencerGatewayProvider},
-    signers::{LocalWallet, Signer, SigningKey},
+    providers::Provider,
 };
 
-pub struct StarkNetClient {
-    provider: SequencerGatewayProvider,
-    account: SingleOwnerAccount<SequencerGatewayProvider, LocalWallet>,
-    badge_registry_address: FieldElement,
-}
+use super::{client::StarkNetClient, errors::StarknetError};
 
 /// Stark ECDSA signature
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
@@ -35,75 +24,7 @@ pub struct SignedData {
     pub signature: Signature,
 }
 
-#[derive(Debug)]
-pub enum StarknetError {
-    TransactionError(
-        TransactionError<
-            <SequencerGatewayProvider as Provider>::Error,
-            <LocalWallet as Signer>::SignError,
-        >,
-    ),
-}
-
-impl fmt::Display for StarknetError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            StarknetError::TransactionError(e) => e.fmt(f),
-        }
-    }
-}
-
-pub enum StarkNetChain {
-    Testnet,
-    Mainnet,
-}
-
-impl FromStr for StarkNetChain {
-    type Err = ();
-
-    fn from_str(input: &str) -> Result<StarkNetChain, Self::Err> {
-        match input {
-            "TESTNET" => Ok(StarkNetChain::Testnet),
-            "MAINNET" => Ok(StarkNetChain::Mainnet),
-            _ => Err(()),
-        }
-    }
-}
-
 impl StarkNetClient {
-    pub fn new(
-        hex_account_address: &str,
-        hex_private_key: &str,
-        hex_badge_registry_address: &str,
-        chain: StarkNetChain,
-    ) -> Self {
-        let provider = match chain {
-            StarkNetChain::Testnet => SequencerGatewayProvider::starknet_alpha_goerli(),
-            StarkNetChain::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
-        };
-        let account_provider = match chain {
-            StarkNetChain::Testnet => SequencerGatewayProvider::starknet_alpha_goerli(),
-            StarkNetChain::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
-        };
-        let chain_id = match chain {
-            StarkNetChain::Testnet => TESTNET,
-            StarkNetChain::Mainnet => MAINNET,
-        };
-        let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-            FieldElement::from_hex_be(hex_private_key).expect("Invalid private key"),
-        ));
-        let account_address =
-            FieldElement::from_hex_be(hex_account_address).expect("Invalid account address");
-        let badge_registry_address = FieldElement::from_hex_be(hex_badge_registry_address)
-            .expect("Invalid address for badge_registry");
-
-        StarkNetClient {
-            provider,
-            account: SingleOwnerAccount::new(account_provider, signer, account_address, chain_id),
-            badge_registry_address,
-        }
-    }
-
     pub async fn check_signature(
         &self,
         signed_data: SignedData,
@@ -153,9 +74,10 @@ impl StarkNetClient {
 
 #[cfg(test)]
 mod tests {
-    use super::Signature;
-    use super::StarkNetChain;
-    use super::StarkNetClient;
+    use crate::contracts::badge_registry::Signature;
+    use crate::contracts::client::StarkNetChain;
+    use crate::contracts::{self, client::StarkNetClient};
+
     use rocket::tokio;
     use starknet::core::types::FieldElement;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -193,7 +115,7 @@ mod tests {
 
         let result = client
             .check_signature(
-                super::SignedData {
+                contracts::badge_registry::SignedData {
                     hash,
                     signature: Signature {
                         r: signature_r,
@@ -223,7 +145,7 @@ mod tests {
 
         let result = client
             .check_signature(
-                super::SignedData {
+                contracts::badge_registry::SignedData {
                     hash,
                     signature: Signature {
                         r: signature_r,
@@ -236,7 +158,7 @@ mod tests {
 
         assert!(&result.is_err());
         match result.err().unwrap() {
-            crate::starknet_client::StarknetError::TransactionError(e) => {
+            crate::contracts::errors::StarknetError::TransactionError(e) => {
                 assert!(e
                     .to_string()
                     .contains("is invalid, with respect to the public key"))

@@ -1,6 +1,9 @@
 use std::fmt;
 
-use crate::{github, starknet_client};
+use crate::{
+    contracts::{self, badge_registry},
+    github,
+};
 use rocket::{
     http::Status,
     log::private::info,
@@ -33,11 +36,11 @@ impl fmt::Display for SignedData {
     }
 }
 
-impl From<SignedData> for starknet_client::SignedData {
+impl From<SignedData> for badge_registry::SignedData {
     fn from(data: SignedData) -> Self {
         Self {
             hash: data.hash,
-            signature: starknet_client::Signature {
+            signature: badge_registry::Signature {
                 r: data.signature.r,
                 s: data.signature.s,
             },
@@ -57,7 +60,7 @@ pub struct GithubUserRegistrationRequest<'r> {
 pub async fn register_github_user(
     registration: Json<GithubUserRegistrationRequest<'_>>,
     github_client: &State<github::GitHubClient>,
-    starknet_client: &State<starknet_client::StarkNetClient>,
+    starknet_client: &State<contracts::client::StarkNetClient>,
 ) -> Status {
     let access_token = github_client
         .new_access_token(registration.authorization_code)
@@ -89,7 +92,7 @@ pub async fn register_github_user(
 
     let result = starknet_client
         .check_signature(
-            starknet_client::SignedData::from(registration.signed_data),
+            badge_registry::SignedData::from(registration.signed_data),
             registration.account_address,
         )
         .await;
@@ -125,13 +128,4 @@ pub async fn register_github_user(
         user_id, registration.account_address
     );
     Status::NoContent
-}
-
-#[derive(Responder)]
-#[response(status = 200, content_type = "json")]
-pub struct RawOk(&'static str);
-
-#[get("/health")]
-pub async fn health_check() -> RawOk {
-    RawOk("{\"status\":\"ok\"}")
 }
