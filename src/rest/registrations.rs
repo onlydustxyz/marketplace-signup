@@ -1,48 +1,37 @@
-use std::fmt;
-
 use crate::{
     contracts::{self, badge_registry},
     github,
 };
 use rocket::{
     http::Status,
-    log::private::info,
     serde::{json::Json, Deserialize},
     State,
 };
 use starknet::core::types::FieldElement;
 
+use crate::rest::felt::HexFieldElement;
+
 #[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(crate = "rocket::serde")]
 pub struct Signature {
-    pub r: FieldElement,
-    pub s: FieldElement,
+    pub r: HexFieldElement,
+    pub s: HexFieldElement,
 }
 
 #[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(crate = "rocket::serde")]
 pub struct SignedData {
-    hash: FieldElement,
+    hash: HexFieldElement,
     signature: Signature,
-}
-
-impl fmt::Display for SignedData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "hash={} <r={}, s={}>",
-            self.hash, self.signature.r, self.signature.s
-        )
-    }
 }
 
 impl From<SignedData> for badge_registry::SignedData {
     fn from(data: SignedData) -> Self {
         Self {
-            hash: data.hash,
+            hash: FieldElement::from(data.hash),
             signature: badge_registry::Signature {
-                r: data.signature.r,
-                s: data.signature.s,
+                r: FieldElement::from(data.signature.r),
+                s: FieldElement::from(data.signature.s),
             },
         }
     }
@@ -52,7 +41,7 @@ impl From<SignedData> for badge_registry::SignedData {
 #[serde(crate = "rocket::serde")]
 pub struct GithubUserRegistrationRequest<'r> {
     authorization_code: &'r str,
-    account_address: FieldElement,
+    account_address: HexFieldElement,
     signed_data: SignedData,
 }
 
@@ -93,7 +82,7 @@ pub async fn register_github_user(
     let result = starknet_client
         .check_signature(
             badge_registry::SignedData::from(registration.signed_data),
-            registration.account_address,
+            FieldElement::from(registration.account_address),
         )
         .await;
 
@@ -109,7 +98,7 @@ pub async fn register_github_user(
     }
 
     let result = starknet_client
-        .register_user(registration.account_address, user_id)
+        .register_user(FieldElement::from(registration.account_address), user_id)
         .await;
 
     match result {
