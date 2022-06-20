@@ -33,6 +33,9 @@ ENV ROCKET_ADDRESS=0.0.0.0
 ENV ROCKET_PORT=80
 EXPOSE 80
 
+# Add labels
+LABEL "com.datadoghq.ad.logs"='[{"source": "deathnote", "service": "od-badge-signup"}]'
+
 # Use app user
 USER od-app-user:od-app-user
 
