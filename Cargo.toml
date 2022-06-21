@@ -11,5 +11,6 @@ reqwest = { version = "0.11", features = ["json"] }
 starknet = { git = "https://github.com/xJonathanLEI/starknet-rs" }
 
 [dev-dependencies]
+mockall = "0.11.1"
 httpmock = "0.6"
 claim = "0.5"

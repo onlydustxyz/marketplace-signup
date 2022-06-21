@@ -29,12 +29,8 @@ fn rocket() -> _ {
         conf.chain,
     );
 
-    rocket::build()
-        .manage(Box::new(github_client) as Box<dyn IdentityProvider>)
-        .manage(Box::new(starknet_client) as Box<dyn BadgeRegistryClient>)
-        .mount("/", routes![rest::health::health_check])
-        .mount(
-            "/registrations",
-            routes![rest::registrations::register_github_user],
-        )
+    rest::router::new(
+        Box::new(github_client) as Box<dyn IdentityProvider>,
+        Box::new(starknet_client) as Box<dyn BadgeRegistryClient>,
+    )
 }

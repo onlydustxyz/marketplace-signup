@@ -9,7 +9,11 @@ use starknet::{
 
 use super::{client::StarkNetClient, errors::StarknetError};
 
-#[rocket::async_trait]
+#[cfg(test)]
+use mockall::automock;
+
+#[cfg_attr(test, automock)]
+#[async_trait]
 pub trait BadgeRegistryClient: Send + Sync {
     async fn check_signature(
         &self,
