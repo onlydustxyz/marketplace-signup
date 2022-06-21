@@ -1,9 +1,12 @@
+use contracts::badge_registry::BadgeRegistryClient;
+use identity_providers::{github, IdentityProvider};
+
 #[macro_use]
 extern crate rocket;
 
 mod config;
 mod contracts;
-mod github;
+mod identity_providers;
 mod rest;
 
 #[launch]
@@ -27,8 +30,8 @@ fn rocket() -> _ {
     );
 
     rocket::build()
-        .manage(github_client)
-        .manage(starknet_client)
+        .manage(Box::new(github_client) as Box<dyn IdentityProvider>)
+        .manage(Box::new(starknet_client) as Box<dyn BadgeRegistryClient>)
         .mount("/", routes![rest::health::health_check])
         .mount(
             "/registrations",

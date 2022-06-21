@@ -1,5 +1,7 @@
 use rocket::serde::{Deserialize, Serialize};
 
+use super::IdentityProvider;
+
 const USER_AGENT: &str = "od-badge-signup";
 
 pub struct GitHubClient {
@@ -47,11 +49,11 @@ impl GitHubClient {
             github_secret,
         }
     }
+}
 
-    pub async fn new_access_token(
-        &self,
-        authorization_code: &str,
-    ) -> Result<String, reqwest::Error> {
+#[rocket::async_trait]
+impl IdentityProvider for GitHubClient {
+    async fn new_access_token(&self, authorization_code: &str) -> Result<String, reqwest::Error> {
         let request_body = AccessTokenRequestBody {
             client_id: &self.github_id,
             client_secret: &self.github_secret,
@@ -72,7 +74,7 @@ impl GitHubClient {
         Ok(response.access_token)
     }
 
-    pub async fn get_user_id(&self, access_token: &str) -> Result<u64, reqwest::Error> {
+    async fn get_user_id(&self, access_token: &str) -> Result<u64, reqwest::Error> {
         let response = self
             .http_client
             .get(&self.user_api_url)
@@ -93,6 +95,8 @@ impl GitHubClient {
 
 #[cfg(test)]
 mod tests {
+    use crate::identity_providers::IdentityProvider;
+
     use super::GitHubClient;
     use claim::*;
     use httpmock::prelude::*;

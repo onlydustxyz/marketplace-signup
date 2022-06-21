@@ -1,6 +1,6 @@
 use crate::{
-    contracts::{self, badge_registry},
-    github,
+    contracts::badge_registry::{self, BadgeRegistryClient},
+    identity_providers::IdentityProvider,
 };
 use rocket::{
     http::Status,
@@ -48,10 +48,10 @@ pub struct GithubUserRegistrationRequest<'r> {
 #[post("/github", format = "json", data = "<registration>")]
 pub async fn register_github_user(
     registration: Json<GithubUserRegistrationRequest<'_>>,
-    github_client: &State<github::GitHubClient>,
-    starknet_client: &State<contracts::client::StarkNetClient>,
+    github_identity_provider: &State<Box<dyn IdentityProvider>>,
+    badge_registry_client: &State<Box<dyn BadgeRegistryClient>>,
 ) -> Status {
-    let access_token = github_client
+    let access_token = github_identity_provider
         .new_access_token(registration.authorization_code)
         .await;
 
@@ -66,7 +66,7 @@ pub async fn register_github_user(
         }
     };
 
-    let user_id = github_client.get_user_id(&access_token).await;
+    let user_id = github_identity_provider.get_user_id(&access_token).await;
 
     let user_id = match user_id {
         Ok(user_id) => user_id,
@@ -79,7 +79,7 @@ pub async fn register_github_user(
         }
     };
 
-    let result = starknet_client
+    let result = badge_registry_client
         .check_signature(
             badge_registry::SignedData::from(registration.signed_data),
             FieldElement::from(registration.account_address),
@@ -97,7 +97,7 @@ pub async fn register_github_user(
         }
     }
 
-    let result = starknet_client
+    let result = badge_registry_client
         .register_user(FieldElement::from(registration.account_address), user_id)
         .await;
 
