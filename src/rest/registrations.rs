@@ -118,3 +118,100 @@ pub async fn register_github_user(
     );
     Status::NoContent
 }
+
+#[cfg(test)]
+mod tests {
+    use mockall::predicate::eq;
+    use rocket::{
+        http::{ContentType, Status},
+        local::blocking::Client,
+        serde::json::serde_json::json,
+    };
+    use starknet::macros::felt;
+
+    use crate::{
+        contracts::badge_registry::{BadgeRegistryClient, MockBadgeRegistryClient},
+        identity_providers::{IdentityProvider, MockIdentityProvider},
+        rest,
+    };
+
+    #[test]
+    fn test_register_github_user() {
+        let mut github_mock = MockIdentityProvider::new();
+
+        github_mock
+            .expect_new_access_token()
+            .with(eq("foo-code"))
+            .times(1)
+            .returning(|_| Ok("foo-token".to_string()));
+
+        github_mock
+            .expect_get_user_id()
+            .with(eq("foo-token"))
+            .times(1)
+            .returning(|_| Ok(42));
+
+        let mut badge_registry_mock = MockBadgeRegistryClient::new();
+
+        badge_registry_mock
+            .expect_check_signature()
+            .with(
+                eq(crate::contracts::badge_registry::SignedData {
+                    hash: felt!(
+                        "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074"
+                    ),
+                    signature: crate::contracts::badge_registry::Signature {
+                        r: felt!(
+                            "0xde4d49b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117493bcd"
+                        ),
+                        s: felt!(
+                            "0x4b61402b98b29a34bd4cba8b5eabae840809914160002385444059f59449a4"
+                        ),
+                    },
+                }),
+                eq(felt!(
+                    "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace"
+                )),
+            )
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        badge_registry_mock
+            .expect_register_user()
+            .with(
+                eq(felt!(
+                    "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace"
+                )),
+                eq(42),
+            )
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        let router = rest::router::new(
+            Box::new(github_mock) as Box<dyn IdentityProvider>,
+            Box::new(badge_registry_mock) as Box<dyn BadgeRegistryClient>,
+        );
+
+        let client = Client::tracked(router).expect("valid rocket instance");
+        let response = client
+            .post(uri!("/registrations/github"))
+            .header(ContentType::JSON)
+            .body(
+                json!({
+                    "authorization_code": "foo-code",
+                    "account_address": "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace",
+                    "signed_data": {
+                        "hash": "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074",
+                        "signature": {
+                            "r": "0xde4d49b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117493bcd",
+                            "s": "0x4b61402b98b29a34bd4cba8b5eabae840809914160002385444059f59449a4"
+                        }
+                    },
+                })
+                .to_string(),
+            )
+            .dispatch();
+
+        assert_eq!(response.status(), Status::NoContent);
+    }
+}

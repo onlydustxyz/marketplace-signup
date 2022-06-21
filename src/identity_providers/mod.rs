@@ -1,6 +1,10 @@
 pub mod github;
 
-#[rocket::async_trait]
+#[cfg(test)]
+use mockall::automock;
+
+#[cfg_attr(test, automock)]
+#[async_trait]
 pub trait IdentityProvider: Send + Sync {
     async fn new_access_token(&self, authorization_code: &str) -> Result<String, reqwest::Error>;
 
