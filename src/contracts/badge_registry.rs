@@ -9,6 +9,21 @@ use starknet::{
 
 use super::{client::StarkNetClient, errors::StarknetError};
 
+#[rocket::async_trait]
+pub trait BadgeRegistryClient: Send + Sync {
+    async fn check_signature(
+        &self,
+        signed_data: SignedData,
+        account_address: FieldElement,
+    ) -> Result<(), StarknetError>;
+
+    async fn register_user(
+        &self,
+        user_account_address: FieldElement,
+        github_user_id: u64,
+    ) -> Result<(), StarknetError>;
+}
+
 /// Stark ECDSA signature
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub struct Signature {
@@ -24,8 +39,9 @@ pub struct SignedData {
     pub signature: Signature,
 }
 
-impl StarkNetClient {
-    pub async fn check_signature(
+#[rocket::async_trait]
+impl BadgeRegistryClient for StarkNetClient {
+    async fn check_signature(
         &self,
         signed_data: SignedData,
         account_address: FieldElement,
@@ -53,7 +69,7 @@ impl StarkNetClient {
         Ok(())
     }
 
-    pub async fn register_user(
+    async fn register_user(
         &self,
         user_account_address: FieldElement,
         github_user_id: u64,
@@ -74,7 +90,7 @@ impl StarkNetClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::contracts::badge_registry::Signature;
+    use crate::contracts::badge_registry::{BadgeRegistryClient, Signature};
     use crate::contracts::client::StarkNetChain;
     use crate::contracts::{self, client::StarkNetClient};
 
