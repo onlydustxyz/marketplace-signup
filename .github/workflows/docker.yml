@@ -25,12 +25,12 @@ jobs:
     - name: Build the Docker image
       id: build-image
       env:
-        DOCKER_REPOSITORY: od-badge-signup
+        DOCKER_REPOSITORY: ${{ github.event.repository.name }}
         DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
         IMAGE_TAG: ${{ github.ref_name }}
       run: |
-        echo "Building docker image..."
-        docker build -t $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG .
+        echo "Building docker image $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG"
+        docker build --build-arg SERVICE_NAME=$DOCKER_REPOSITORY -t $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG .
         echo "::set-output name=image::$DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG"
 
     - name: Push the image to Docker Hub
