@@ -7,21 +7,26 @@ use rocket::{
     serde::{json::Json, Deserialize},
     State,
 };
+use serde_with::serde_as;
+use starknet::core::serde::unsigned_field_element::UfeHex;
 use starknet::core::types::FieldElement;
 
-use crate::rest::felt::HexFieldElement;
-
+#[serde_as]
 #[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(crate = "rocket::serde")]
 pub struct Signature {
-    pub r: HexFieldElement,
-    pub s: HexFieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub r: FieldElement,
+    #[serde_as(as = "UfeHex")]
+    pub s: FieldElement,
 }
 
+#[serde_as]
 #[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[serde(crate = "rocket::serde")]
 pub struct SignedData {
-    hash: HexFieldElement,
+    #[serde_as(as = "UfeHex")]
+    hash: FieldElement,
     signature: Signature,
 }
 
@@ -37,11 +42,13 @@ impl From<SignedData> for badge_registry::SignedData {
     }
 }
 
+#[serde_as]
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct GithubUserRegistrationRequest<'r> {
     authorization_code: &'r str,
-    account_address: HexFieldElement,
+    #[serde_as(as = "UfeHex")]
+    account_address: FieldElement,
     signed_data: SignedData,
 }
 
