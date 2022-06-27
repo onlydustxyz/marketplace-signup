@@ -9,7 +9,7 @@ pub fn new(
     rocket::build()
         .manage(github_identity_provider)
         .manage(badge_registry_client)
-        .attach(super::cors::CORS)
+        .attach(super::cors::Cors)
         .mount(
             "/",
             routes![
