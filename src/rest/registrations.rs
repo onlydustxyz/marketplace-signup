@@ -33,10 +33,10 @@ pub struct SignedData {
 impl From<SignedData> for badge_registry::SignedData {
     fn from(data: SignedData) -> Self {
         Self {
-            hash: FieldElement::from(data.hash),
+            hash: data.hash,
             signature: badge_registry::Signature {
-                r: FieldElement::from(data.signature.r),
-                s: FieldElement::from(data.signature.s),
+                r: data.signature.r,
+                s: data.signature.s,
             },
         }
     }
@@ -89,7 +89,7 @@ pub async fn register_github_user(
     let result = badge_registry_client
         .check_signature(
             badge_registry::SignedData::from(registration.signed_data),
-            FieldElement::from(registration.account_address),
+            registration.account_address,
         )
         .await;
 
@@ -105,7 +105,7 @@ pub async fn register_github_user(
     }
 
     let result = badge_registry_client
-        .register_user(FieldElement::from(registration.account_address), user_id)
+        .register_user(registration.account_address, user_id)
         .await;
 
     match result {
