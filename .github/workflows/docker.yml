@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'use-global-docker-workflow'
     tags:
       - 'v*'
 
@@ -12,6 +11,8 @@ jobs:
   docker:
     uses: onlydustxyz/cicd/.github/workflows/docker-workflow.yml@main
     with:
-      docker_repository: od-badge-signup
+      image_name: od-badge-signup
       image_tag: ${{ github.ref_name }}
+      dockerfile: rocket-rs
+      datadog_label: '[{"source": "deathnote", "service": "od-badge-signup"}]'
     secrets: inherit
