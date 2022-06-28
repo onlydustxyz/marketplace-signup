@@ -102,11 +102,6 @@ mod tests {
     use starknet::core::types::FieldElement;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    const ADMIN_TEST_ACCOUNT: &str =
-        "0x7343772b33dd34cbb1e23b9abefdde5b7addccb3e3c66943b78e5e52d416c29";
-    const ADMIN_TEST_PRIVATE_KEY: &str =
-        "0x55cb05e5333e59e535c81183d5a4f7f8b2add5679996c5d426b0bbb6665b564";
-
     const ANYONE_TEST_ACCOUNT: &str =
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
@@ -119,14 +114,21 @@ mod tests {
     const BAD_SIGNATURE_R: &str =
         "0x000049b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117490000";
 
-    #[tokio::test]
-    async fn check_signature_is_valid() {
-        let client = StarkNetClient::new(
-            ADMIN_TEST_ACCOUNT,
-            ADMIN_TEST_PRIVATE_KEY,
+    fn new_test_client() -> StarkNetClient {
+        let admin_account = std::env::var("STARKNET_ACCOUNT").unwrap();
+        let admin_private_key = std::env::var("STARKNET_PRIVATE_KEY").unwrap();
+
+        StarkNetClient::new(
+            admin_account.as_str(),
+            admin_private_key.as_str(),
             BADGE_REGISTRY_ADDRESS,
             StarkNetChain::Testnet,
-        );
+        )
+    }
+
+    #[tokio::test]
+    async fn check_signature_is_valid() {
+        let client = new_test_client();
 
         let address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
         let hash = FieldElement::from_hex_be(HASH).unwrap();
@@ -151,12 +153,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_signature_is_not_valid() {
-        let client = StarkNetClient::new(
-            ADMIN_TEST_ACCOUNT,
-            ADMIN_TEST_PRIVATE_KEY,
-            BADGE_REGISTRY_ADDRESS,
-            StarkNetChain::Testnet,
-        );
+        let client = new_test_client();
 
         let address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
         let hash = FieldElement::from_hex_be(HASH).unwrap();
@@ -188,12 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_user() {
-        let client = StarkNetClient::new(
-            ADMIN_TEST_ACCOUNT,
-            ADMIN_TEST_PRIVATE_KEY,
-            BADGE_REGISTRY_ADDRESS,
-            StarkNetChain::Testnet,
-        );
+        let client = new_test_client();
 
         let user_address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
 

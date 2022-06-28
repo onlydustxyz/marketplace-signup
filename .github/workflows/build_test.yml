@@ -4,6 +4,8 @@ on: [push]
 
 env:
   CARGO_TERM_COLOR: always
+  STARKNET_ACCOUNT: ${{ secrets.STARKNET_ADMIN_TEST_ACCOUNT }}
+  STARKNET_PRIVATE_KEY: ${{ secrets.STARKNET_ADMIN_TEST_PRIVATE_KEY }}
 
 jobs:
   build_and_test:
