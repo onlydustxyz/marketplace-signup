@@ -1,3 +1,4 @@
+use dotenv::dotenv;
 use contracts::badge_registry::BadgeRegistryClient;
 use identity_providers::{github, IdentityProvider};
 
@@ -12,6 +13,7 @@ mod rest;
 #[launch]
 fn rocket() -> _ {
     info!("loading configuration...");
+    dotenv().ok();
     let conf = config::load();
     info!("configuration loaded");
 
@@ -21,7 +23,6 @@ fn rocket() -> _ {
         conf.access_token_url,
         conf.user_api_url,
     );
-
     let starknet_client = contracts::client::StarkNetClient::new(
         &conf.hex_account_address,
         &conf.hex_private_key,
