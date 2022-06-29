@@ -1,5 +1,5 @@
 [package]
-name = "od-badge-signup"
+name = "deathnote-signup"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,8 @@ path = "src/main.rs"
 dotenv = "0.15.0"
 rocket = { version = "0.5.0-rc.2", features = ["json"] }
 reqwest = { version = "0.11", features = ["json"] }
+opentelemetry = { version = "*", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "*", features = ["rt-tokio"] }
 starknet = { git = "https://github.com/xJonathanLEI/starknet-rs" }
 serde_with = "1.14.0"
 
