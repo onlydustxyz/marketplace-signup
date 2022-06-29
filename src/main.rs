@@ -11,7 +11,7 @@ mod contracts;
 mod identity_providers;
 mod rest;
 
-const SERVICE_NAME: &str = "od-badge-signup";
+const SERVICE_NAME: &str = "deathnote-signup";
 
 #[rocket::main]
 async fn main() {

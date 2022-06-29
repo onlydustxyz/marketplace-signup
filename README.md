@@ -56,6 +56,15 @@ Optional:
 cargo run
 ```
 
+# Open Telemetry
+
+```bash
+docker-compose -f resources/docker-compose/dev/docker-compose.yml up -d
+```
+
+Access to Jaeger UI: 
+http://localhost:16686/
+
 ### Build
 
 ```bash
