@@ -2,6 +2,9 @@ use crate::{
     contracts::badge_registry::{self, BadgeRegistryClient},
     identity_providers::IdentityProvider,
 };
+use opentelemetry::global;
+
+use opentelemetry::trace::{Span, StatusCode, Tracer};
 use rocket::{
     http::Status,
     serde::{json::Json, Deserialize},
@@ -58,72 +61,82 @@ pub async fn register_github_user(
     github_identity_provider: &State<Box<dyn IdentityProvider>>,
     badge_registry_client: &State<Box<dyn BadgeRegistryClient>>,
 ) -> Status {
-    let access_token = github_identity_provider
-        .new_access_token(registration.authorization_code)
+    let tracer = global::tracer("registrations");
+    let span = tracer.start("register_github_user");
+    let status = tracer
+        .with_span(span, |_cx| async {
+            let mut new_access_token_span = tracer.start("new_access_token");
+            let access_token = github_identity_provider
+                .new_access_token(registration.authorization_code)
+                .await;
+
+            let access_token = match access_token {
+                Ok(access_token) => access_token,
+                Err(e) => {
+                    warn!(
+                        "failed to get new GitHub access token from code {}. Error: {}",
+                        registration.authorization_code, e
+                    );
+                    new_access_token_span.set_status(StatusCode::Error, e.to_string());
+                    return Status::Unauthorized;
+                }
+            };
+            new_access_token_span.end();
+
+            let user_id = github_identity_provider.get_user_id(&access_token).await;
+
+            let user_id = match user_id {
+                Ok(user_id) => user_id,
+                Err(e) => {
+                    error!(
+                        "failed to get GitHub user id with access token {}. Error: {}",
+                        access_token, e
+                    );
+                    return Status::InternalServerError;
+                }
+            };
+
+            let result = badge_registry_client
+                .check_signature(
+                    badge_registry::SignedData::from(registration.signed_data),
+                    registration.account_address,
+                )
+                .await;
+
+            match result {
+                Ok(_) => (),
+                Err(e) => {
+                    error!(
+                        "signed data has an invalid signature for account {}. Error: {}",
+                        registration.account_address, e
+                    );
+                    return Status::Unauthorized;
+                }
+            }
+
+            let result = badge_registry_client
+                .register_user(registration.account_address, user_id)
+                .await;
+
+            match result {
+                Ok(_) => (),
+                Err(e) => {
+                    error!(
+                        "failed to register account {} in badge registry. Error: {}",
+                        registration.account_address, e
+                    );
+                    return Status::InternalServerError;
+                }
+            }
+
+            info!(
+                "successfully registered user with GitHub ID {} and StarkNet account {}",
+                user_id, registration.account_address
+            );
+            Status::NoContent
+        })
         .await;
-
-    let access_token = match access_token {
-        Ok(access_token) => access_token,
-        Err(e) => {
-            warn!(
-                "failed to get new GitHub access token from code {}. Error: {}",
-                registration.authorization_code, e
-            );
-            return Status::Unauthorized;
-        }
-    };
-
-    let user_id = github_identity_provider.get_user_id(&access_token).await;
-
-    let user_id = match user_id {
-        Ok(user_id) => user_id,
-        Err(e) => {
-            error!(
-                "failed to get GitHub user id with access token {}. Error: {}",
-                access_token, e
-            );
-            return Status::InternalServerError;
-        }
-    };
-
-    let result = badge_registry_client
-        .check_signature(
-            badge_registry::SignedData::from(registration.signed_data),
-            registration.account_address,
-        )
-        .await;
-
-    match result {
-        Ok(_) => (),
-        Err(e) => {
-            error!(
-                "signed data has an invalid signature for account {}. Error: {}",
-                registration.account_address, e
-            );
-            return Status::Unauthorized;
-        }
-    }
-
-    let result = badge_registry_client
-        .register_user(registration.account_address, user_id)
-        .await;
-
-    match result {
-        Ok(_) => (),
-        Err(e) => {
-            error!(
-                "failed to register account {} in badge registry. Error: {}",
-                registration.account_address, e
-            );
-            return Status::InternalServerError;
-        }
-    }
-
-    info!(
-        "successfully registered user with GitHub ID {} and StarkNet account {}",
-        user_id, registration.account_address
-    );
-    Status::NoContent
+    status
 }
 
 #[cfg(test)]
