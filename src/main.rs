@@ -1,5 +1,5 @@
-use dotenv::dotenv;
 use contracts::badge_registry::BadgeRegistryClient;
+use dotenv::dotenv;
 use identity_providers::{github, IdentityProvider};
 
 #[macro_use]
