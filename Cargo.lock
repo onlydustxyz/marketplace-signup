@@ -710,6 +710,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "deathnote-signup"
+version = "0.1.0"
+dependencies = [
+ "claim",
+ "dotenv",
+ "httpmock",
+ "mockall",
+ "reqwest",
+ "rocket",
+ "serde_with",
+ "starknet",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1745,20 +1759,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2819ce041d2ee131036f4fc9d6ae7ae125a3a40e97ba64d04fe799ad9dabbb44"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "od-badge-signup"
-version = "0.1.0"
-dependencies = [
- "claim",
- "dotenv",
- "httpmock",
- "mockall",
- "reqwest",
- "rocket",
- "serde_with",
- "starknet",
 ]
 
 [[package]]
