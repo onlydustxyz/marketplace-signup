@@ -1,11 +1,7 @@
 [package]
-name = "od-badge-signup"
+name = "deathnote-signup"
 version = "0.1.0"
 edition = "2021"
-
-[[bin]]
-name = "service"
-path = "src/main.rs"
 
 [dependencies]
 dotenv = "0.15.0"
