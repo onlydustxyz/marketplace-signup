@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use starknet::{
     accounts::SingleOwnerAccount,
@@ -48,6 +51,15 @@ impl StarkNetClient {
             account: SingleOwnerAccount::new(account_provider, signer, account_address, chain_id),
             badge_registry_address,
         }
+    }
+
+    pub fn get_timestamp_based_nonce(&self) -> FieldElement {
+        let start = SystemTime::now();
+        let timestamp = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        FieldElement::from_dec_str(&timestamp.as_micros().to_string()).unwrap()
     }
 }
 
