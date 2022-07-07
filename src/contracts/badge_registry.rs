@@ -1,5 +1,5 @@
 use starknet::{
-    accounts::{single_owner::TransactionError, Account, Call},
+    accounts::{single_owner::TransactionError, Account, AccountCall, Call},
     core::{
         types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
         utils::get_selector_from_name,
@@ -81,9 +81,10 @@ impl BadgeRegistryClient for StarkNetClient {
         self.account
             .execute(&[Call {
                 to: self.badge_registry_address,
-                selector: get_selector_from_name("register_github_handle").unwrap(),
+                selector: get_selector_from_name("register_github_identifier").unwrap(),
                 calldata: vec![user_account_address, FieldElement::from(github_user_id)],
             }])
+            .nonce(self.get_timestamp_based_nonce())
             .send()
             .await
             .map_err(StarknetError::TransactionError)?;
@@ -98,6 +99,7 @@ mod tests {
     use crate::contracts::client::StarkNetChain;
     use crate::contracts::{self, client::StarkNetClient};
 
+    use dotenv::dotenv;
     use rocket::tokio;
     use starknet::core::types::FieldElement;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -106,7 +108,7 @@ mod tests {
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
     const BADGE_REGISTRY_ADDRESS: &str =
-        "0x0689c0f3483daffd4e79a61f22f5a093f8adee50926a96161c23b058de70200d";
+        "0x050d04dade55dbb7a7a59d8067a716d4e4b02c89a75730e1655c63a2eeafbe24";
 
     const HASH: &str = "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074";
     const SIGNATURE_R: &str = "0xde4d49b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117493bcd";
@@ -115,6 +117,7 @@ mod tests {
         "0x000049b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117490000";
 
     fn new_test_client() -> StarkNetClient {
+        dotenv().ok();
         let admin_account = std::env::var("STARKNET_ACCOUNT").unwrap();
         let admin_private_key = std::env::var("STARKNET_PRIVATE_KEY").unwrap();
 
