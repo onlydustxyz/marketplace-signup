@@ -134,7 +134,7 @@ mod tests {
         local::blocking::Client,
         serde::json::serde_json::json,
     };
-    use starknet::macros::felt;
+    use starknet::{core::types::AddTransactionResult, macros::felt};
 
     use crate::{
         contracts::badge_registry::{BadgeRegistryClient, MockBadgeRegistryClient},
@@ -192,7 +192,14 @@ mod tests {
                 eq(42),
             )
             .times(1)
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| {
+                Ok(AddTransactionResult {
+                    code: starknet::core::types::AddTransactionResultCode::TransactionReceived,
+                    transaction_hash: felt!("0x666"),
+                    address: None,
+                    class_hash: None,
+                })
+            });
 
         let router = rest::router::new(
             Box::new(github_mock) as Box<dyn IdentityProvider>,

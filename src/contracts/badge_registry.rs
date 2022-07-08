@@ -1,7 +1,8 @@
+use anyhow::Result;
 use starknet::{
     accounts::{single_owner::TransactionError, Account, AccountCall, Call},
     core::{
-        types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
+        types::{AddTransactionResult, BlockId, FieldElement, InvokeFunctionTransactionRequest},
         utils::get_selector_from_name,
     },
     providers::Provider,
@@ -25,7 +26,7 @@ pub trait BadgeRegistryClient: Send + Sync {
         &self,
         user_account_address: FieldElement,
         github_user_id: u64,
-    ) -> Result<(), StarknetError>;
+    ) -> Result<AddTransactionResult>;
 }
 
 /// Stark ECDSA signature
@@ -77,19 +78,21 @@ impl BadgeRegistryClient for StarkNetClient {
         &self,
         user_account_address: FieldElement,
         github_user_id: u64,
-    ) -> Result<(), StarknetError> {
+    ) -> Result<AddTransactionResult> {
+        let nonce = self
+            .get_2d_nonce(FieldElement::from(github_user_id))
+            .await?;
+
         self.account
             .execute(&[Call {
                 to: self.badge_registry_address,
                 selector: get_selector_from_name("register_github_identifier").unwrap(),
                 calldata: vec![user_account_address, FieldElement::from(github_user_id)],
             }])
-            .nonce(self.get_timestamp_based_nonce())
+            .nonce(nonce)
             .send()
             .await
-            .map_err(StarknetError::TransactionError)?;
-
-        Ok(())
+            .map_err(anyhow::Error::msg)
     }
 }
 
@@ -100,15 +103,15 @@ mod tests {
     use crate::contracts::{self, client::StarkNetClient};
 
     use dotenv::dotenv;
+    use rand::prelude::*;
     use rocket::tokio;
     use starknet::core::types::FieldElement;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     const ANYONE_TEST_ACCOUNT: &str =
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
-    const BADGE_REGISTRY_ADDRESS: &str =
-        "0x050d04dade55dbb7a7a59d8067a716d4e4b02c89a75730e1655c63a2eeafbe24";
+    const REGISTRY_ADDRESS: &str =
+        "0x04e16efc9bc2d8d40ecb73d3d69e3e2d6f0fc3e2e6e9b7601310fdfa7dd6c7cf";
 
     const HASH: &str = "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074";
     const SIGNATURE_R: &str = "0xde4d49b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117493bcd";
@@ -124,7 +127,7 @@ mod tests {
         StarkNetClient::new(
             admin_account.as_str(),
             admin_private_key.as_str(),
-            BADGE_REGISTRY_ADDRESS,
+            REGISTRY_ADDRESS,
             StarkNetChain::Testnet,
         )
     }
@@ -190,12 +193,55 @@ mod tests {
     async fn register_user() {
         let client = new_test_client();
 
-        let user_address = FieldElement::from_hex_be(ANYONE_TEST_ACCOUNT).unwrap();
+        // use very high ids to avoid any conflict with real github ids
+        let user_id: u64 = std::u64::MAX - rand::thread_rng().gen_range(1_000..1_000_000_000);
+        let user_address = FieldElement::from(user_id - 42);
 
-        let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        let user_id: u64 = since_the_epoch.as_millis().try_into().unwrap();
+        let transaction_result = client.register_user(user_address, user_id).await;
+        assert!(
+            transaction_result.is_ok(),
+            "{}",
+            transaction_result.err().unwrap()
+        );
 
-        let result = client.register_user(user_address, user_id).await;
-        assert!(result.is_ok(), "{}", result.err().unwrap());
+        let acceptance_result = client
+            .wait_for_transaction_acceptance(transaction_result.unwrap())
+            .await;
+        assert!(
+            acceptance_result.is_ok(),
+            "{}",
+            acceptance_result.err().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn register_multiple_user_concurrently() {
+        let client = new_test_client();
+
+        // use very high ids to avoid any conflict with real github ids
+        let mut user_id: u64 = std::u64::MAX - rand::thread_rng().gen_range(1_000..1_000_000_000);
+
+        let mut transactions = Vec::new();
+
+        for _ in 0..5 {
+            let user_address = FieldElement::from(user_id - 42);
+            let transaction_result = client.register_user(user_address, user_id).await;
+            assert!(
+                transaction_result.is_ok(),
+                "{}",
+                transaction_result.err().unwrap()
+            );
+            transactions.push(transaction_result.unwrap());
+            user_id += 1;
+        }
+
+        for transaction in transactions {
+            let acceptance_result = client.wait_for_transaction_acceptance(transaction).await;
+            assert!(
+                acceptance_result.is_ok(),
+                "{}",
+                acceptance_result.err().unwrap()
+            );
+        }
     }
 }

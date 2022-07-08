@@ -1,15 +1,14 @@
-use std::{
-    str::FromStr,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::str::FromStr;
 
+use anyhow::{anyhow, Result};
 use starknet::{
-    accounts::SingleOwnerAccount,
+    accounts::{single_owner::GetNonceError, SingleOwnerAccount},
     core::{
         chain_id::{MAINNET, TESTNET},
-        types::FieldElement,
+        types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
+        utils::get_selector_from_name,
     },
-    providers::SequencerGatewayProvider,
+    providers::{Provider, SequencerGatewayProvider},
     signers::{LocalWallet, SigningKey},
 };
 
@@ -53,13 +52,27 @@ impl StarkNetClient {
         }
     }
 
-    pub fn get_timestamp_based_nonce(&self) -> FieldElement {
-        let start = SystemTime::now();
-        let timestamp = start
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+    pub async fn get_2d_nonce(&self, nonce_key: FieldElement) -> Result<FieldElement> {
+        let call_result = self
+            .provider
+            .call_contract(
+                InvokeFunctionTransactionRequest {
+                    contract_address: self.account.address(),
+                    entry_point_selector: get_selector_from_name("get_nonce").unwrap(),
+                    calldata: vec![nonce_key],
+                    signature: vec![],
+                    max_fee: FieldElement::ZERO,
+                },
+                BlockId::Latest,
+            )
+            .await
+            .map_err(GetNonceError::ProviderError)?;
 
-        FieldElement::from_dec_str(&timestamp.as_micros().to_string()).unwrap()
+        if call_result.result.len() == 1 {
+            Ok(call_result.result[0])
+        } else {
+            Err(anyhow!("Invalid response length"))
+        }
     }
 }
 
@@ -76,6 +89,61 @@ impl FromStr for StarkNetChain {
             "TESTNET" => Ok(StarkNetChain::Testnet),
             "MAINNET" => Ok(StarkNetChain::Mainnet),
             _ => Err(()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{thread, time::Duration};
+
+    use anyhow::{anyhow, Result};
+    use starknet::{
+        core::types::{AddTransactionResult, TransactionStatus},
+        providers::Provider,
+    };
+
+    impl super::StarkNetClient {
+        #[cfg(test)]
+        pub async fn wait_for_transaction_acceptance(
+            &self,
+            transaction_result: AddTransactionResult,
+        ) -> Result<AddTransactionResult> {
+            println!(
+                "Waiting for transaction 0x{:x} to be accepted",
+                transaction_result.transaction_hash
+            );
+
+            loop {
+                let receipt = match self
+                    .provider
+                    .get_transaction_status(transaction_result.transaction_hash)
+                    .await
+                    .map_err(anyhow::Error::msg)
+                {
+                    Ok(receipt) => receipt,
+                    Err(e) => {
+                        warn!("{}", e);
+                        thread::sleep(Duration::from_secs(3));
+                        continue;
+                    }
+                };
+
+                println!("Transaction is {:?}", receipt.status);
+
+                break match receipt.status {
+                    TransactionStatus::NotReceived
+                    | TransactionStatus::Received
+                    | TransactionStatus::Pending => {
+                        thread::sleep(Duration::from_secs(3));
+                        continue;
+                    }
+                    TransactionStatus::AcceptedOnL2 | TransactionStatus::AcceptedOnL1 => {
+                        Ok(transaction_result)
+                    }
+                    TransactionStatus::Rejected => Err(anyhow!("Transaction rejected")),
+                };
+            }
         }
     }
 }
