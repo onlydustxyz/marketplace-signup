@@ -1,10 +1,12 @@
 use crate::{
     contracts::badge_registry::{self, BadgeRegistryClient},
     identity_providers::IdentityProvider,
+    rest::problem,
+    rest::problem::ProblemResponse,
 };
 use rocket::{
     http::Status,
-    serde::{json::Json, Deserialize},
+    serde::{json::Json, Deserialize, Serialize},
     State,
 };
 use serde_with::serde_as;
@@ -52,12 +54,20 @@ pub struct GithubUserRegistrationRequest<'r> {
     signed_data: SignedData,
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct GithubUserRegistrationResponse {
+    #[serde_as(as = "UfeHex")]
+    transaction_hash: FieldElement,
+}
+
 #[post("/github", format = "json", data = "<registration>")]
 pub async fn register_github_user(
     registration: Json<GithubUserRegistrationRequest<'_>>,
     github_identity_provider: &State<Box<dyn IdentityProvider>>,
     badge_registry_client: &State<Box<dyn BadgeRegistryClient>>,
-) -> Status {
+) -> Result<Json<GithubUserRegistrationResponse>, ProblemResponse> {
     let access_token = github_identity_provider
         .new_access_token(registration.authorization_code)
         .await;
@@ -66,10 +76,17 @@ pub async fn register_github_user(
         Ok(access_token) => access_token,
         Err(e) => {
             warn!(
-                "failed to get new GitHub access token from code {}. Error: {}",
+                "Failed to get new GitHub access token from code {}. Error: {}",
                 registration.authorization_code, e
             );
-            return Status::Unauthorized;
+            return Err(problem::new_response(
+                Status::Unauthorized,
+                "Invalid GitHub code",
+                format!(
+                    "Failed to get new GitHub access token from code {}",
+                    registration.authorization_code
+                ),
+            ));
         }
     };
 
@@ -79,10 +96,17 @@ pub async fn register_github_user(
         Ok(user_id) => user_id,
         Err(e) => {
             error!(
-                "failed to get GitHub user id with access token {}. Error: {}",
+                "Failed to get GitHub user id with access token {}. Error: {}",
                 access_token, e
             );
-            return Status::InternalServerError;
+            return Err(problem::new_response(
+                Status::InternalServerError,
+                "GitHub GET /user failure",
+                format!(
+                    "Failed to get GitHub user id with access token {}",
+                    access_token
+                ),
+            ));
         }
     };
 
@@ -96,11 +120,18 @@ pub async fn register_github_user(
     match result {
         Ok(_) => (),
         Err(e) => {
-            error!(
-                "signed data has an invalid signature for account {}. Error: {}",
+            warn!(
+                "Signed data has an invalid signature for account {}. Error: {}",
                 registration.account_address, e
             );
-            return Status::Unauthorized;
+            return Err(problem::new_response(
+                Status::InternalServerError,
+                "Invalid signature",
+                format!(
+                    "Signed data has an invalid signature for account {}",
+                    registration.account_address
+                ),
+            ));
         }
     }
 
@@ -108,26 +139,36 @@ pub async fn register_github_user(
         .register_user(registration.account_address, user_id)
         .await;
 
-    match result {
-        Ok(_) => (),
+    let transaction_result = match result {
+        Ok(transaction_result) => transaction_result,
         Err(e) => {
             error!(
-                "failed to register account {} in badge registry. Error: {}",
+                "Failed to register account {} in the registry contract. Error: {}",
                 registration.account_address, e
             );
-            return Status::InternalServerError;
+            return Err(problem::new_response(
+                Status::InternalServerError,
+                "Transaction error",
+                format!(
+                    "Failed to register account {} in the registry contract",
+                    registration.account_address
+                ),
+            ));
         }
-    }
+    };
 
     info!(
         "successfully registered user with GitHub ID {} and StarkNet account {}",
         user_id, registration.account_address
     );
-    Status::NoContent
+    Ok(Json(GithubUserRegistrationResponse {
+        transaction_hash: transaction_result.transaction_hash,
+    }))
 }
 
 #[cfg(test)]
 mod tests {
+    use claim::assert_some_eq;
     use mockall::predicate::eq;
     use rocket::{
         http::{ContentType, Status},
@@ -226,6 +267,8 @@ mod tests {
             )
             .dispatch();
 
-        assert_eq!(response.status(), Status::NoContent);
+        assert_eq!(response.status(), Status::Ok);
+        let body = response.into_string();
+        assert_some_eq!(body, "{\"transaction_hash\":\"0x666\"}".to_string());
     }
 }
