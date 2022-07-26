@@ -1,8 +1,13 @@
 use rocket::serde::{Deserialize, Serialize};
 
-use super::IdentityProvider;
+use crate::domain::{
+    errors::AuthenticationError,
+    errors::IdentificationError,
+    services::identity_provider::IdentityProvider,
+    value_objects::{AccessToken, Identity},
+};
 
-const USER_AGENT: &str = "od-badge-signup";
+const USER_AGENT: &str = "od-marketplace-signup";
 
 pub struct GitHubClient {
     http_client: reqwest::Client,
@@ -53,7 +58,10 @@ impl GitHubClient {
 
 #[rocket::async_trait]
 impl IdentityProvider for GitHubClient {
-    async fn new_access_token(&self, authorization_code: &str) -> Result<String, reqwest::Error> {
+    async fn new_access_token(
+        &self,
+        authorization_code: &str,
+    ) -> Result<AccessToken, AuthenticationError> {
         let request_body = AccessTokenRequestBody {
             client_id: &self.github_id,
             client_secret: &self.github_secret,
@@ -67,14 +75,23 @@ impl IdentityProvider for GitHubClient {
             .header(reqwest::header::ACCEPT, "application/json")
             .header(reqwest::header::USER_AGENT, USER_AGENT)
             .send()
-            .await?
-            .error_for_status()?;
+            .await
+            .map_err(|e| AuthenticationError::Http(Box::new(e)))?
+            .error_for_status()
+            .map_err(|e| AuthenticationError::Http(Box::new(e)))?;
 
-        let response = response.json::<AccessTokenResponseBody>().await?;
-        Ok(response.access_token)
+        let response = response
+            .json::<AccessTokenResponseBody>()
+            .await
+            .map_err(|e| AuthenticationError::Serde(Box::new(e)))?;
+
+        Ok(AccessToken::from(response.access_token))
     }
 
-    async fn get_user_id(&self, access_token: &str) -> Result<u64, reqwest::Error> {
+    async fn get_user_id(
+        &self,
+        access_token: &AccessToken,
+    ) -> Result<Identity, IdentificationError> {
         let response = self
             .http_client
             .get(&self.user_api_url)
@@ -85,17 +102,27 @@ impl IdentityProvider for GitHubClient {
                 format!("token {}", access_token),
             )
             .send()
-            .await?
-            .error_for_status()?;
+            .await
+            .map_err(|e| IdentificationError::Http(Box::new(e)))?
+            .error_for_status()
+            .map_err(|e| IdentificationError::Http(Box::new(e)))?;
 
-        let response = response.json::<UserResponseBody>().await?;
-        Ok(response.id)
+        let response = response
+            .json::<UserResponseBody>()
+            .await
+            .map_err(|e| IdentificationError::Serde(Box::new(e)))?;
+
+        Ok(Identity::GitHubId(response.id.into()))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::identity_providers::IdentityProvider;
+
+    use crate::domain::{
+        services::identity_provider::IdentityProvider,
+        value_objects::{AccessToken, Identity},
+    };
 
     use super::GitHubClient;
     use claim::*;
@@ -137,7 +164,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(
             "gho_16C7e42F292c6912E7710c838347Ae178B4a".to_string(),
-            result.unwrap()
+            result.unwrap().to_string()
         );
     }
 
@@ -165,9 +192,10 @@ mod tests {
             }));
         });
 
-        let result = github_client.get_user_id("foo-access-token").await;
+        let access_token = AccessToken::from("foo-access-token".to_string());
+        let result = github_client.get_user_id(&access_token).await;
 
         github_mock.assert();
-        assert_ok_eq!(result, 42);
+        assert_ok_eq!(result, Identity::GitHubId(42.into()));
     }
 }

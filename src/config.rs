@@ -1,4 +1,4 @@
-use crate::contracts::client::StarkNetChain;
+use crate::infrastructure::starknet_client::StarkNetChain;
 
 pub struct Configuration {
     pub github_id: String,

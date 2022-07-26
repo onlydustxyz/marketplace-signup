@@ -729,6 +729,7 @@ dependencies = [
  "rocket",
  "serde_with",
  "starknet",
+ "thiserror",
 ]
 
 [[package]]
