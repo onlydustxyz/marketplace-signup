@@ -207,7 +207,7 @@ mod tests {
         let result = client
             .register_contributor(user_address, FieldElement::from(user_id))
             .await;
-        assert!(result.is_ok(), "{}", result.err().unwrap());
+        assert!(result.is_ok(), "{:#?}", result.err().unwrap());
 
         let acceptance_result = client
             .wait_for_transaction_acceptance(result.unwrap().into())
@@ -231,7 +231,7 @@ mod tests {
                 .await;
             assert!(
                 transaction_result.is_ok(),
-                "{}",
+                "{:#?}",
                 transaction_result.err().unwrap()
             );
             transactions.push(transaction_result.unwrap());
