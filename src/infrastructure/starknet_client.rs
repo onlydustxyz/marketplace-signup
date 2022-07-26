@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use anyhow::{anyhow, Result};
 use starknet::{
     accounts::{single_owner::GetNonceError, SingleOwnerAccount},
     core::{
@@ -52,7 +51,10 @@ impl StarkNetClient {
         }
     }
 
-    pub async fn get_2d_nonce(&self, nonce_key: FieldElement) -> Result<FieldElement> {
+    pub async fn get_2d_nonce(
+        &self,
+        nonce_key: FieldElement,
+    ) -> Result<FieldElement, GetNonceError<<SequencerGatewayProvider as Provider>::Error>> {
         let call_result = self
             .provider
             .call_contract(
@@ -71,7 +73,10 @@ impl StarkNetClient {
         if call_result.result.len() == 1 {
             Ok(call_result.result[0])
         } else {
-            Err(anyhow!("Invalid response length"))
+            Err(GetNonceError::InvalidResponseLength {
+                expected: 1,
+                actual: call_result.result.len(),
+            })
         }
     }
 }
@@ -95,29 +100,27 @@ impl FromStr for StarkNetChain {
 
 #[cfg(test)]
 mod tests {
+    use starknet::core::types::FieldElement;
     use std::{thread, time::Duration};
 
-    use anyhow::{anyhow, Result};
-    use starknet::{
-        core::types::{AddTransactionResult, TransactionStatus},
-        providers::Provider,
-    };
+    use anyhow::Result;
+    use starknet::{core::types::TransactionStatus, providers::Provider};
 
     impl super::StarkNetClient {
         #[cfg(test)]
         pub async fn wait_for_transaction_acceptance(
             &self,
-            transaction_result: AddTransactionResult,
-        ) -> Result<AddTransactionResult> {
+            transaction_hash: FieldElement,
+        ) -> Result<(), ()> {
             println!(
                 "Waiting for transaction 0x{:x} to be accepted",
-                transaction_result.transaction_hash
+                transaction_hash
             );
 
             loop {
                 let receipt = match self
                     .provider
-                    .get_transaction_status(transaction_result.transaction_hash)
+                    .get_transaction_status(transaction_hash)
                     .await
                     .map_err(anyhow::Error::msg)
                 {
@@ -138,10 +141,8 @@ mod tests {
                         thread::sleep(Duration::from_secs(3));
                         continue;
                     }
-                    TransactionStatus::AcceptedOnL2 | TransactionStatus::AcceptedOnL1 => {
-                        Ok(transaction_result)
-                    }
-                    TransactionStatus::Rejected => Err(anyhow!("Transaction rejected")),
+                    TransactionStatus::AcceptedOnL2 | TransactionStatus::AcceptedOnL1 => Ok(()),
+                    TransactionStatus::Rejected => Err(()),
                 };
             }
         }

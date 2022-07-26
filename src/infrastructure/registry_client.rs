@@ -1,33 +1,20 @@
 use anyhow::Result;
 use starknet::{
-    accounts::{single_owner::TransactionError, Account, AccountCall, Call},
+    accounts::{Account, AccountCall, Call},
     core::{
-        types::{AddTransactionResult, BlockId, FieldElement, InvokeFunctionTransactionRequest},
+        types::{BlockId, FieldElement, InvokeFunctionTransactionRequest},
         utils::get_selector_from_name,
     },
     providers::Provider,
 };
 
-use super::{client::StarkNetClient, errors::StarknetError};
+use crate::domain::{
+    errors::{RegistryError, SignatureError},
+    services::onchain_registry::OnChainRegistry,
+    value_objects::Identity,
+};
 
-#[cfg(test)]
-use mockall::automock;
-
-#[cfg_attr(test, automock)]
-#[async_trait]
-pub trait BadgeRegistryClient: Send + Sync {
-    async fn check_signature(
-        &self,
-        signed_data: SignedData,
-        account_address: FieldElement,
-    ) -> Result<(), StarknetError>;
-
-    async fn register_user(
-        &self,
-        user_account_address: FieldElement,
-        github_user_id: u64,
-    ) -> Result<AddTransactionResult>;
-}
+use super::starknet_client::StarkNetClient;
 
 /// Stark ECDSA signature
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
@@ -44,13 +31,27 @@ pub struct SignedData {
     pub signature: Signature,
 }
 
+// This is need to be able to use a FieldElement as a ContributorId
+impl From<Identity> for FieldElement {
+    fn from(identity: Identity) -> Self {
+        match identity {
+            Identity::GitHubId(github_id) => FieldElement::from(github_id.0),
+        }
+    }
+}
+
 #[rocket::async_trait]
-impl BadgeRegistryClient for StarkNetClient {
+impl OnChainRegistry for StarkNetClient {
+    type SignedData = SignedData;
+    type AccountAddress = FieldElement;
+    type TransactionHash = FieldElement;
+    type ContributorId = FieldElement;
+
     async fn check_signature(
         &self,
         signed_data: SignedData,
-        account_address: FieldElement,
-    ) -> Result<(), StarknetError> {
+        account_address: Self::AccountAddress,
+    ) -> Result<(), SignatureError> {
         self.provider
             .call_contract(
                 InvokeFunctionTransactionRequest {
@@ -68,44 +69,50 @@ impl BadgeRegistryClient for StarkNetClient {
                 BlockId::Latest,
             )
             .await
-            .map_err(TransactionError::ProviderError)
-            .map_err(StarknetError::TransactionError)?;
+            .map_err(|e| SignatureError::InvalidSignature(Box::new(e)))?;
 
         Ok(())
     }
 
-    async fn register_user(
+    async fn register_contributor(
         &self,
-        user_account_address: FieldElement,
-        github_user_id: u64,
-    ) -> Result<AddTransactionResult> {
+        user_account_address: Self::AccountAddress,
+        user_id: Self::ContributorId,
+    ) -> Result<Self::TransactionHash, RegistryError> {
         let nonce = self
-            .get_2d_nonce(FieldElement::from(github_user_id))
-            .await?;
+            .get_2d_nonce(FieldElement::from(user_id))
+            .await
+            .map_err(|e| RegistryError::Nonce(Box::new(e)))?;
 
         self.account
             .execute(&[Call {
                 to: self.badge_registry_address,
                 selector: get_selector_from_name("register_github_identifier").unwrap(),
-                calldata: vec![user_account_address, FieldElement::from(github_user_id)],
+                calldata: vec![user_account_address, FieldElement::from(user_id)],
             }])
             .nonce(nonce)
             .send()
             .await
-            .map_err(anyhow::Error::msg)
+            .map_err(|e| RegistryError::Transaction(Box::new(e)))
+            .map(|transaction_result| transaction_result.transaction_hash)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::contracts::badge_registry::{BadgeRegistryClient, Signature};
-    use crate::contracts::client::StarkNetChain;
-    use crate::contracts::{self, client::StarkNetClient};
 
     use dotenv::dotenv;
     use rand::prelude::*;
     use rocket::tokio;
     use starknet::core::types::FieldElement;
+
+    use crate::{
+        domain::{errors::SignatureError, services::onchain_registry::OnChainRegistry},
+        infrastructure::{
+            registry_client::{Signature, SignedData},
+            starknet_client::{StarkNetChain, StarkNetClient},
+        },
+    };
 
     const ANYONE_TEST_ACCOUNT: &str =
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
@@ -143,7 +150,7 @@ mod tests {
 
         let result = client
             .check_signature(
-                contracts::badge_registry::SignedData {
+                SignedData {
                     hash,
                     signature: Signature {
                         r: signature_r,
@@ -168,7 +175,7 @@ mod tests {
 
         let result = client
             .check_signature(
-                contracts::badge_registry::SignedData {
+                SignedData {
                     hash,
                     signature: Signature {
                         r: signature_r,
@@ -181,7 +188,7 @@ mod tests {
 
         assert!(&result.is_err());
         match result.err().unwrap() {
-            crate::contracts::errors::StarknetError::TransactionError(e) => {
+            SignatureError::InvalidSignature(e) => {
                 assert!(e
                     .to_string()
                     .contains("is invalid, with respect to the public key"))
@@ -190,28 +197,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn register_user() {
+    async fn register_contributor() {
         let client = new_test_client();
 
         // use very high ids to avoid any conflict with real github ids
         let user_id: u64 = std::u64::MAX - rand::thread_rng().gen_range(1_000..1_000_000_000);
         let user_address = FieldElement::from(user_id - 42);
 
-        let transaction_result = client.register_user(user_address, user_id).await;
-        assert!(
-            transaction_result.is_ok(),
-            "{}",
-            transaction_result.err().unwrap()
-        );
+        let result = client
+            .register_contributor(user_address, FieldElement::from(user_id))
+            .await;
+        assert!(result.is_ok(), "{}", result.err().unwrap());
 
         let acceptance_result = client
-            .wait_for_transaction_acceptance(transaction_result.unwrap())
+            .wait_for_transaction_acceptance(result.unwrap().into())
             .await;
-        assert!(
-            acceptance_result.is_ok(),
-            "{}",
-            acceptance_result.err().unwrap()
-        );
+        assert!(acceptance_result.is_ok());
     }
 
     #[tokio::test]
@@ -225,7 +226,9 @@ mod tests {
 
         for _ in 0..5 {
             let user_address = FieldElement::from(user_id - 42);
-            let transaction_result = client.register_user(user_address, user_id).await;
+            let transaction_result = client
+                .register_contributor(user_address, FieldElement::from(user_id))
+                .await;
             assert!(
                 transaction_result.is_ok(),
                 "{}",
@@ -237,11 +240,7 @@ mod tests {
 
         for transaction in transactions {
             let acceptance_result = client.wait_for_transaction_acceptance(transaction).await;
-            assert!(
-                acceptance_result.is_ok(),
-                "{}",
-                acceptance_result.err().unwrap()
-            );
+            assert!(acceptance_result.is_ok());
         }
     }
 }

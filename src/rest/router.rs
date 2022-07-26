@@ -1,14 +1,13 @@
 use rocket::{Build, Rocket};
 
-use crate::{contracts::badge_registry::BadgeRegistryClient, identity_providers::IdentityProvider};
+use crate::{
+    application::registerer::Registerer,
+    infrastructure::{github_client::GitHubClient, starknet_client::StarkNetClient},
+};
 
-pub fn new(
-    github_identity_provider: Box<dyn IdentityProvider>,
-    badge_registry_client: Box<dyn BadgeRegistryClient>,
-) -> Rocket<Build> {
+pub fn new(registerer: Box<dyn Registerer<GitHubClient, StarkNetClient>>) -> Rocket<Build> {
     rocket::build()
-        .manage(github_identity_provider)
-        .manage(badge_registry_client)
+        .manage(registerer)
         .attach(super::cors::Cors)
         .mount(
             "/",
@@ -25,22 +24,35 @@ pub fn new(
 
 #[cfg(test)]
 mod tests {
+    use mockall::mock;
     use rocket::{http::Status, local::blocking::Client};
 
     use crate::{
-        contracts::badge_registry::{BadgeRegistryClient, MockBadgeRegistryClient},
-        identity_providers::{IdentityProvider, MockIdentityProvider},
+        application::registerer::Registerer,
+        domain::{errors::RegistrationError, services::onchain_registry::OnChainRegistry},
+        infrastructure::{github_client::GitHubClient, starknet_client::StarkNetClient},
         rest,
     };
 
+    mock! {
+        MyRegisterer {}
+        #[async_trait]
+        impl Registerer<GitHubClient, StarkNetClient> for MyRegisterer {
+            async fn register_contributor(
+                &self,
+                authorization_code: String,
+                account_address: <StarkNetClient as OnChainRegistry>::AccountAddress,
+                signed_data: <StarkNetClient as OnChainRegistry>::SignedData,
+            ) -> Result<<StarkNetClient as OnChainRegistry>::TransactionHash, RegistrationError>;
+        }
+    }
+
     #[test]
     fn test_options() {
-        let github_mock = MockIdentityProvider::new();
-        let badge_registry_mock = MockBadgeRegistryClient::new();
+        let registerer_mock = MockMyRegisterer::new();
 
         let router = rest::router::new(
-            Box::new(github_mock) as Box<dyn IdentityProvider>,
-            Box::new(badge_registry_mock) as Box<dyn BadgeRegistryClient>,
+            Box::new(registerer_mock) as Box<dyn Registerer<GitHubClient, StarkNetClient>>
         );
 
         let client = Client::tracked(router).expect("valid rocket instance");
