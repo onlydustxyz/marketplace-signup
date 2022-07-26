@@ -105,7 +105,7 @@ pub async fn register_github_user(
                 return Err(problem::new_response(
                     Status::InternalServerError,
                     "GitHub GET /user failure",
-                    format!("Failed to get GitHub user id",),
+                    "Failed to get GitHub user id".to_string(),
                 ));
             }
             RegistrationError::Signature(e) => {

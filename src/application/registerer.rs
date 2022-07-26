@@ -55,24 +55,24 @@ where
             .identity_provider
             .new_access_token(&authorization_code)
             .await
-            .map_err(|e| RegistrationError::Authentication(e))?;
+            .map_err(RegistrationError::Authentication)?;
 
         let user_id = self
             .identity_provider
             .get_user_id(&access_token)
             .await
-            .map_err(|e| RegistrationError::Identification(e))?;
+            .map_err(RegistrationError::Identification)?;
 
         self.registry
             .check_signature(signed_data, account_address.clone())
             .await
-            .map_err(|e| RegistrationError::Signature(e))?;
+            .map_err(RegistrationError::Signature)?;
 
         let transaction_hash = self
             .registry
             .register_contributor(account_address, user_id.into())
             .await
-            .map_err(|e| RegistrationError::Registry(e))?;
+            .map_err(RegistrationError::Registry)?;
 
         Ok(transaction_hash)
     }
