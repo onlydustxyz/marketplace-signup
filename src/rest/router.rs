@@ -1,4 +1,8 @@
 use rocket::{Build, Rocket};
+use rocket_okapi::{
+    openapi_get_routes,
+    swagger_ui::{make_swagger_ui, SwaggerUIConfig},
+};
 
 use crate::{
     application::registerer::Registerer,
@@ -17,9 +21,17 @@ pub fn new(registerer: Box<dyn Registerer<GitHubClient, StarkNetClient>>) -> Roc
             ],
         )
         .mount(
-            "/registrations",
-            routes![super::registrations::register_github_user],
+            "/",
+            openapi_get_routes![super::registrations::register_github_user],
         )
+        .mount("/swagger", make_swagger_ui(&get_docs()))
+}
+
+pub(crate) fn get_docs() -> SwaggerUIConfig {
+    SwaggerUIConfig {
+        url: "/openapi.json".to_string(),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
