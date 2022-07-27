@@ -4,11 +4,10 @@ use crate::{
     application::registerer::Registerer,
     domain::errors::RegistrationError,
     infrastructure::{github_client::GitHubClient, starknet_client::StarkNetClient},
-    rest::problem,
-    rest::problem::ProblemResponse,
 };
+use http_api_problem::HttpApiProblem;
+use http_api_problem::StatusCode;
 use rocket::{
-    http::Status,
     serde::{json::Json, Deserialize, Serialize},
     State,
 };
@@ -74,7 +73,7 @@ type GithubStarknetRegisterer = dyn Registerer<GitHubClient, StarkNetClient>;
 pub async fn register_github_user(
     registration: Json<GithubUserRegistrationRequest<'_>>,
     github_starknet_registerer: &State<Box<GithubStarknetRegisterer>>,
-) -> Result<Json<GithubUserRegistrationResponse>, ProblemResponse> {
+) -> Result<Json<GithubUserRegistrationResponse>, HttpApiProblem> {
     let result = github_starknet_registerer
         .register_contributor(
             registration.authorization_code.to_string(),
@@ -88,53 +87,45 @@ pub async fn register_github_user(
         Err(e) => match e {
             RegistrationError::Authentication(e) => {
                 warn!(
-                    "Failed to get new GitHub access token from code {}. Error: {}",
+                    "Failed to get new GitHub access token from code {}. Error: {:?}",
                     registration.authorization_code, e
                 );
-                return Err(problem::new_response(
-                    Status::Unauthorized,
-                    "Invalid GitHub code",
-                    format!(
+                return Err(HttpApiProblem::new(StatusCode::UNAUTHORIZED)
+                    .title("Invalid GitHub code")
+                    .detail(format!(
                         "Failed to get new GitHub access token from code {}",
                         registration.authorization_code
-                    ),
-                ));
+                    )));
             }
             RegistrationError::Identification(e) => {
-                error!("Failed to get GitHub user id. Error: {}", e);
-                return Err(problem::new_response(
-                    Status::InternalServerError,
-                    "GitHub GET /user failure",
-                    "Failed to get GitHub user id".to_string(),
-                ));
+                error!("Failed to get GitHub user id. Error: {:?}", e);
+                return Err(HttpApiProblem::new(StatusCode::INTERNAL_SERVER_ERROR)
+                    .title("GitHub GET /user failure")
+                    .detail("Failed to get GitHub user id"));
             }
             RegistrationError::Signature(e) => {
                 warn!(
-                    "Signed data has an invalid signature for account {}. Error: {}",
+                    "Signed data has an invalid signature for account {}. Error: {:?}",
                     registration.account_address, e
                 );
-                return Err(problem::new_response(
-                    Status::InternalServerError,
-                    "Invalid signature",
-                    format!(
+                return Err(HttpApiProblem::new(StatusCode::UNAUTHORIZED)
+                    .title("Invalid signature")
+                    .detail(format!(
                         "Signed data has an invalid signature for account {}",
                         registration.account_address
-                    ),
-                ));
+                    )));
             }
             RegistrationError::Registry(e) => {
                 error!(
-                    "Failed to register account {} in the registry contract. Error: {}",
+                    "Failed to register account {} in the registry contract. Error: {:?}",
                     registration.account_address, e
                 );
-                return Err(problem::new_response(
-                    Status::InternalServerError,
-                    "Transaction error",
-                    format!(
+                return Err(HttpApiProblem::new(StatusCode::INTERNAL_SERVER_ERROR)
+                    .title("Transaction error")
+                    .detail(format!(
                         "Failed to register account {} in the registry contract",
                         registration.account_address
-                    ),
-                ));
+                    )));
             }
         },
     };
