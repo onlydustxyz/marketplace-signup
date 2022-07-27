@@ -103,7 +103,6 @@ mod tests {
     use starknet::core::types::FieldElement;
     use std::{thread, time::Duration};
 
-    use anyhow::Result;
     use starknet::{core::types::TransactionStatus, providers::Provider};
 
     impl super::StarkNetClient {
@@ -118,12 +117,7 @@ mod tests {
             );
 
             loop {
-                let receipt = match self
-                    .provider
-                    .get_transaction_status(transaction_hash)
-                    .await
-                    .map_err(anyhow::Error::msg)
-                {
+                let receipt = match self.provider.get_transaction_status(transaction_hash).await {
                     Ok(receipt) => receipt,
                     Err(e) => {
                         warn!("{}", e);

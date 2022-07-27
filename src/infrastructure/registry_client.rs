@@ -1,4 +1,3 @@
-use anyhow::Result;
 use starknet::{
     accounts::{Account, AccountCall, Call},
     core::{
