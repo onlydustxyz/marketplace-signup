@@ -1,5 +1,3 @@
-use crate::infrastructure::StarknetSignature;
-use crate::infrastructure::StarknetSignedData;
 use crate::{
     application::registerer::Registerer,
     domain::errors::RegistrationError,
@@ -7,69 +5,16 @@ use crate::{
 };
 use http_api_problem::HttpApiProblem;
 use http_api_problem::StatusCode;
-use rocket::{
-    serde::{json::Json, Deserialize, Serialize},
-    State,
-};
-use serde_with::serde_as;
-use starknet::core::serde::unsigned_field_element::UfeHex;
-use starknet::core::types::FieldElement;
+use rocket::{serde::json::Json, State};
+use rocket_okapi::openapi;
 
-#[serde_as]
-#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
-#[serde(crate = "rocket::serde")]
-pub struct Signature {
-    #[serde_as(as = "UfeHex")]
-    pub r: FieldElement,
-    #[serde_as(as = "UfeHex")]
-    pub s: FieldElement,
-}
-
-impl From<Signature> for StarknetSignature {
-    fn from(val: Signature) -> Self {
-        StarknetSignature { r: val.r, s: val.s }
-    }
-}
-
-#[serde_as]
-#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
-#[serde(crate = "rocket::serde")]
-pub struct SignedData {
-    #[serde_as(as = "UfeHex")]
-    hash: FieldElement,
-    signature: Signature,
-}
-
-impl From<SignedData> for StarknetSignedData {
-    fn from(val: SignedData) -> Self {
-        StarknetSignedData {
-            hash: val.hash,
-            signature: val.signature.into(),
-        }
-    }
-}
-
-#[serde_as]
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-pub struct GithubUserRegistrationRequest<'r> {
-    authorization_code: &'r str,
-    #[serde_as(as = "UfeHex")]
-    account_address: FieldElement,
-    signed_data: SignedData,
-}
-
-#[serde_as]
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct GithubUserRegistrationResponse {
-    #[serde_as(as = "UfeHex")]
-    transaction_hash: FieldElement,
-}
+use super::dto::GithubUserRegistrationRequest;
+use super::dto::GithubUserRegistrationResponse;
 
 type GithubStarknetRegisterer = dyn Registerer<GitHubClient, StarkNetClient>;
 
-#[post("/github", format = "json", data = "<registration>")]
+#[openapi(tag = "Registrations")]
+#[post("/registrations/github", format = "json", data = "<registration>")]
 pub async fn register_github_user(
     registration: Json<GithubUserRegistrationRequest<'_>>,
     github_starknet_registerer: &State<Box<GithubStarknetRegisterer>>,
@@ -77,7 +22,7 @@ pub async fn register_github_user(
     let result = github_starknet_registerer
         .register_contributor(
             registration.authorization_code.to_string(),
-            registration.account_address,
+            registration.account_address.into(),
             registration.signed_data.into(),
         )
         .await;
@@ -134,13 +79,15 @@ pub async fn register_github_user(
         "successfully registered user with account {}",
         registration.account_address
     );
-    Ok(Json(GithubUserRegistrationResponse { transaction_hash }))
+    Ok(Json(GithubUserRegistrationResponse {
+        transaction_hash: transaction_hash.into(),
+    }))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::rest::registrations::StarknetSignature;
-    use crate::rest::registrations::StarknetSignedData;
+    use crate::infrastructure::StarknetSignature;
+    use crate::infrastructure::StarknetSignedData;
     use crate::{
         application::registerer::Registerer,
         domain::{errors::RegistrationError, services::onchain_registry::OnChainRegistry},
