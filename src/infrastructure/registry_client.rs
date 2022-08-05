@@ -116,8 +116,7 @@ mod tests {
     const ANYONE_TEST_ACCOUNT: &str =
         "0x65f1506b7f974a1355aeebc1314579326c84a029cd8257a91f82384a6a0ace";
 
-    const REGISTRY_ADDRESS: &str =
-        "0x04e16efc9bc2d8d40ecb73d3d69e3e2d6f0fc3e2e6e9b7601310fdfa7dd6c7cf";
+    const REGISTRY_ADDRESS: &str = "";
 
     const HASH: &str = "0x287b943b1934949486006ad63ac0293038b6c818b858b09f8e0a9da12fc4074";
     const SIGNATURE_R: &str = "0xde4d49b21dd8714eaf5a1b480d8ede84d2230d1763cfe06762d8a117493bcd";
@@ -138,6 +137,7 @@ mod tests {
         )
     }
 
+    #[ignore]
     #[tokio::test]
     async fn check_signature_is_valid() {
         let client = new_test_client();
@@ -163,6 +163,7 @@ mod tests {
         assert!(result.is_ok(), "{}", result.err().unwrap());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn check_signature_is_not_valid() {
         let client = new_test_client();
@@ -195,6 +196,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn register_contributor() {
         let client = new_test_client();
@@ -214,6 +216,7 @@ mod tests {
         assert!(acceptance_result.is_ok());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn register_multiple_user_concurrently() {
         let client = new_test_client();
